@@ -1,129 +1,99 @@
-# SyntheticMass - Synthea Runner
+# SyntheticMass
 
-Simple Docker Compose setup for generating synthetic patient data using [Synthea](https://github.com/synthetichealth/synthea).
+Medical data generation and augmentation pipeline for entity resolution training.
 
 ## Overview
 
-This project uses the [synthea-docker](https://github.com/mrreband/synthea-docker) submodule to run Synthea in a containerized environment, generating realistic synthetic medical records for testing and development.
-
-## Prerequisites
-
-- **Docker**: For running Synthea
-- **Git**: For cloning repository and initializing submodules
-- **4GB+ RAM**: Required for Synthea generation
-
-## Quick Start
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/yourusername/SyntheticMass.git
-cd SyntheticMass
-
-# Initialize the synthea-docker submodule
-git submodule update --init --recursive
-```
-
-### 2. Generate Synthetic Patients
-
-```bash
-# Run Synthea via Docker Compose (generates 500 patients)
-docker-compose up
-
-# Output will be created in: ./output/synthea_raw/csv/
-```
-
-The docker-compose configuration:
-- Generates **500 patients** from Massachusetts
-- Uses fixed seed **12345** for reproducible output
-- Allocates **4GB RAM** for Java heap
-- Exports **CSV format only** (FHIR disabled)
-
-## Generated Output
-
-Synthea produces CSV files in `./output/synthea_raw/csv/`:
-
-### Core Files
-- `patients.csv` - Patient demographics (name, DOB, SSN, address, etc.)
-- `encounters.csv` - Medical visits and encounters
-- `conditions.csv` - Diagnoses and medical conditions
-- `medications.csv` - Prescriptions and medication orders
-- `observations.csv` - Lab results and vital signs
-- `procedures.csv` - Medical procedures and surgeries
-
-### Additional Files
-- `allergies.csv` - Patient allergies
-- `careplans.csv` - Care plans and treatment protocols
-- `devices.csv` - Medical devices
-- `imaging_studies.csv` - Radiology and imaging data
-- `immunizations.csv` - Vaccination records
-- `organizations.csv` - Healthcare organizations
-- `payers.csv` - Insurance payers
-- `providers.csv` - Healthcare providers
-
-## Configuration
-
-### Modify Generation Parameters
-
-Edit `docker-compose.yml` to change:
-- Population size: `-p 500` (change 500 to desired number)
-- Random seed: `-s 12345` (change for different patient set)
-- State/location: `Massachusetts` (change to other US state)
-- Memory: `JAVA_OPTS=-Xmx4g` (increase for larger populations)
-
-### Synthea Properties
-
-The `config/synthea.properties` file (if present) can customize:
-- CSV export settings
-- Socioeconomic distributions
-- Demographics and population characteristics
-- Clinical modules and conditions
-
-See [Synthea Configuration Guide](https://github.com/synthetichealth/synthea/wiki/Common-Configuration) for all options.
+This repository contains tools for generating and augmenting synthetic medical datasets. The goal is to create realistic patient data with controlled variations and errors for training and evaluating entity resolution algorithms.
 
 ## Project Structure
 
 ```
 SyntheticMass/
-├── .gitmodules                    # Git submodule configuration
-├── synthea-docker/                # Synthea Docker submodule
-├── docker-compose.yml             # Docker Compose service definition
-├── config/
-│   └── synthea.properties         # Optional Synthea configuration
-└── output/                        # Generated data (gitignored)
-    └── synthea_raw/csv/           # Synthea CSV output
+├── synthea-runner/          # Synthea patient data generation
+│   ├── docker-compose.yml   # Docker Compose configuration
+│   ├── config/              # Synthea configuration
+│   ├── synthea-docker/      # Synthea Docker submodule
+│   ├── output/              # Generated synthetic patients (gitignored)
+│   └── README.md            # Synthea runner documentation
+│
+├── (future) augmentation/   # Data augmentation pipeline
+│   └── ...                  # Error injection, duplicates, ground truth
+│
+├── LICENSE                  # Project license
+└── README.md                # This file
 ```
 
-## Documentation
+## Components
 
-- [Synthea Wiki](https://github.com/synthetichealth/synthea/wiki) - Complete documentation
-- [CSV Data Dictionary](https://github.com/synthetichealth/synthea/wiki/CSV-File-Data-Dictionary) - Schema reference
-- [Common Configuration](https://github.com/synthetichealth/synthea/wiki/Common-Configuration) - Configuration guide
-- [synthea-docker Repo](https://github.com/mrreband/synthea-docker) - Docker wrapper documentation
+### 1. Synthea Runner (`synthea-runner/`)
 
-## Troubleshooting
+Generates base synthetic patient records using [Synthea](https://github.com/synthetichealth/synthea).
 
-### Submodule not initialized
+**Features:**
+- Generates realistic medical records (demographics, encounters, conditions, medications, etc.)
+- Configurable population size, demographics, and clinical modules
+- CSV export format
+- Reproducible output with fixed random seeds
+
+**Quick Start:**
 ```bash
+# Initialize submodules
 git submodule update --init --recursive
+
+# Generate patients
+cd synthea-runner
+docker compose up
 ```
 
-### Out of memory errors
-Increase heap size in `docker-compose.yml`:
-```yaml
-environment:
-  - JAVA_OPTS=-Xmx8g  # Increase from 4g to 8g
-```
+See [`synthea-runner/README.md`](synthea-runner/README.md) for full documentation.
 
-### Permission errors on output directory
+### 2. Data Augmentation (Coming Soon)
+
+Future component for augmenting Synthea data with:
+- Controlled errors and variations (typos, formatting differences, missing fields)
+- Duplicate record generation
+- Ground truth tracking for entity resolution training
+- Configurable error rates based on healthcare research
+
+## Getting Started
+
+### Prerequisites
+
+- **Docker**: For running Synthea
+- **Git**: For cloning repository and submodules
+- **4GB+ RAM**: Required for Synthea generation
+
+### Initial Setup
+
 ```bash
-chmod -R 755 output/
+# Clone repository
+git clone https://github.com/yourusername/SyntheticMass.git
+cd SyntheticMass
+
+# Initialize submodules
+git submodule update --init --recursive
+
+# Generate base patient data
+cd synthea-runner
+docker compose up
 ```
+
+## Workflow
+
+1. **Generate Base Data** - Use synthea-runner to create synthetic patients
+2. **Augment Data** (future) - Add controlled errors and duplicates
+3. **Train Models** (external) - Use augmented data for entity resolution
 
 ## License
 
 See `LICENSE` file for details.
 
+## Documentation
+
+- [Synthea Runner Documentation](synthea-runner/README.md)
+- [Synthea Official Wiki](https://github.com/synthetichealth/synthea/wiki)
+
 ---
 
-**Built with**: [Synthea](https://github.com/synthetichealth/synthea) | [synthea-docker](https://github.com/mrreband/synthea-docker)
+**Current Status**: Base patient generation operational via synthea-runner

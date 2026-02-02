@@ -1,0 +1,48 @@
+# Default configuration for Entity Resolution Data Augmentation System
+
+facility_distribution:
+  num_facilities: 10
+  strategy: "chronological_switching"
+
+  # Weighted distribution of patients across facilities
+  # 40% of patients visit only 1 facility
+  # 30% visit 2 facilities
+  # 15% visit 3 facilities, etc.
+  facility_count_weights:
+    1: 0.40
+    2: 0.30
+    3: 0.15
+    4: 0.10
+    5: 0.05
+
+  # For patients visiting multiple facilities:
+  # 60% of encounters at primary facility
+  # 40% distributed across secondary facilities
+  primary_facility_weight: 0.60
+
+error_injection:
+  # 35% of patient records will have at least one error
+  global_error_rate: 0.35
+
+  # 20% chance of multiple errors (given at least one error)
+  multiple_errors_probability: 0.20
+
+  # Relative weights for error types
+  # These will be refined based on research findings
+  error_type_weights:
+    name_variation: 0.30      # Nicknames, typos, maiden names
+    address_error: 0.25       # Abbreviations, apartment format, typos
+    date_variation: 0.15      # Off-by-one, format variations
+    ssn_error: 0.10           # Digit transposition, format
+    formatting_error: 0.20    # Capitalization, whitespace
+
+# Paths (will be set via CLI or programmatically)
+paths:
+  input_dir: "synthea-runner/output/synthea_raw/csv"
+  output_dir: "output/augmented"
+
+# Random seed for reproducibility
+random_seed: 42
+
+# Run validation after augmentation
+validate_output: true

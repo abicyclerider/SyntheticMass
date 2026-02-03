@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Dict, List, Optional
 import pandas as pd
+import re
 
 
 class CSVHandler:
@@ -127,6 +128,10 @@ class CSVHandler:
                     parse_dates = ["BIRTHDATE", "DEATHDATE"]
 
                 csvs[filename] = cls.read_csv(file_path, parse_dates=parse_dates)
+
+                # Strip Synthea numbers from name fields in patients.csv
+                if filename == "patients.csv":
+                    csvs[filename] = cls._strip_synthea_numbers(csvs[filename])
             else:
                 raise FileNotFoundError(f"Required CSV file not found: {file_path}")
 
@@ -194,3 +199,35 @@ class CSVHandler:
             return df["APPOINTMENTID"]
         else:
             raise ValueError(f"Cannot determine encounter ID column for {table_name}")
+
+    @staticmethod
+    def _strip_synthea_numbers(patients_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Strip Synthea-generated numbers from name fields.
+
+        Synthea appends numbers to names for uniqueness (e.g., "Nathan164" → "Nathan").
+        We strip these to create realistic name collisions for entity resolution.
+
+        Args:
+            patients_df: Patients DataFrame with Synthea name fields
+
+        Returns:
+            DataFrame with numbers removed from name fields
+        """
+        df = patients_df.copy()
+
+        # Name fields to process
+        name_fields = ["FIRST", "LAST", "MAIDEN"]
+
+        for field in name_fields:
+            if field in df.columns:
+                # Remove all digits, preserving original case and spacing
+                df[field] = df[field].apply(
+                    lambda x: re.sub(r'\d+', '', str(x)) if pd.notna(x) else x
+                )
+                # Clean up any extra whitespace created by digit removal
+                df[field] = df[field].apply(
+                    lambda x: ' '.join(str(x).split()) if pd.notna(x) else x
+                )
+
+        return df

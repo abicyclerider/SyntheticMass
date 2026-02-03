@@ -41,8 +41,8 @@ class NicknameSubstitution(BaseError):
 
         name_upper = str(value).upper().strip()
 
-        # Remove any numbers/digits (some Synthea names have numbers)
-        name_clean = re.sub(r'\d+', '', name_upper)
+        # Numbers already stripped at CSV load time, but keep this line for safety
+        name_clean = re.sub(r'\d+', '', name_upper).strip()
 
         if name_clean in self.NICKNAME_MAP:
             return self.NICKNAME_MAP[name_clean]

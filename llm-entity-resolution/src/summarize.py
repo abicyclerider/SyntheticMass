@@ -86,47 +86,76 @@ def summarize_patient_records(patient_id: str, facility_id: str,
 
 
 def _summarize_conditions(df: Optional[pd.DataFrame]) -> str:
-    """Summarize conditions with onset dates and active/resolved status."""
+    """Summarize conditions, aggregating repeated entries by description."""
     if df is None:
         return "CONDITIONS: none"
 
     lines = ["CONDITIONS (active/historical):"]
-    df = df.sort_values('START')
+    df = df.copy()
+    df['start_str'] = df['START'].astype(str).str[:10]
+    df['is_ongoing'] = df['STOP'].isna() | (df['STOP'].astype(str).str.strip() == '')
 
-    for _, row in df.iterrows():
-        desc = row.get('DESCRIPTION', 'Unknown')
-        start = str(row.get('START', ''))[:10]
-        stop = row.get('STOP', '')
-        if pd.isna(stop) or stop == '':
+    # Group by description
+    grouped = df.groupby('DESCRIPTION', sort=False)
+    # Sort groups by earliest onset
+    group_stats = []
+    for desc, grp in grouped:
+        first_onset = grp['start_str'].min()
+        ongoing = grp['is_ongoing'].any()
+        count = len(grp)
+        if ongoing:
             status = "ongoing"
         else:
-            status = f"resolved {str(stop)[:10]}"
-        lines.append(f"- {desc} (onset: {start}, {status})")
+            last_stop = grp['STOP'].astype(str).str[:10].max()
+            status = f"resolved {last_stop}"
+        group_stats.append((first_onset, desc, count, status))
+
+    group_stats.sort(key=lambda x: x[0])
+
+    for first_onset, desc, count, status in group_stats:
+        count_str = f" (x{count})" if count > 1 else ""
+        lines.append(f"- {desc}{count_str} (onset: {first_onset}, {status})")
 
     return "\n".join(lines)
 
 
 def _summarize_medications(df: Optional[pd.DataFrame]) -> str:
-    """Summarize medications with dates and reasons."""
+    """Summarize medications, collapsing repeated fills into one line per drug."""
     if df is None:
         return "MEDICATIONS: none"
 
     lines = ["MEDICATIONS (current/past):"]
-    df = df.sort_values('START')
+    df = df.copy()
+    df['start_str'] = df['START'].astype(str).str[:10]
+    df['stop_str'] = df['STOP'].astype(str).str[:10]
+    df['is_current'] = df['STOP'].isna() | (df['STOP'].astype(str).str.strip() == '')
 
-    for _, row in df.iterrows():
-        desc = row.get('DESCRIPTION', 'Unknown')
-        start = str(row.get('START', ''))[:10]
-        stop = row.get('STOP', '')
-        reason = row.get('REASONDESCRIPTION', '')
-
-        if pd.isna(stop) or stop == '':
-            period = f"{start} to present"
+    # Group by medication description
+    grouped = df.groupby('DESCRIPTION', sort=False)
+    med_stats = []
+    for desc, grp in grouped:
+        first_start = grp['start_str'].min()
+        is_current = grp['is_current'].any()
+        if is_current:
+            period = f"{first_start} to present"
         else:
-            period = f"{start} to {str(stop)[:10]}"
+            last_stop = grp['stop_str'].max()
+            period = f"{first_start} to {last_stop}"
 
-        reason_str = f" for {reason}" if pd.notna(reason) and reason else ""
-        lines.append(f"- {desc} ({period}){reason_str}")
+        # Use the most common non-empty reason
+        reasons = grp['REASONDESCRIPTION'].dropna()
+        reasons = reasons[reasons.astype(str).str.strip() != '']
+        reason = reasons.mode().iloc[0] if not reasons.empty else ""
+
+        count = len(grp)
+        med_stats.append((first_start, desc, period, reason, count))
+
+    med_stats.sort(key=lambda x: x[0])
+
+    for first_start, desc, period, reason, count in med_stats:
+        reason_str = f" for {reason}" if reason else ""
+        count_str = f" (x{count} fills)" if count > 1 else ""
+        lines.append(f"- {desc} ({period}){reason_str}{count_str}")
 
     return "\n".join(lines)
 

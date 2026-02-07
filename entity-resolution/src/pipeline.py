@@ -157,13 +157,14 @@ def add_record_ids_to_ground_truth(ground_truth_df: pd.DataFrame,
     Returns:
         Ground truth DataFrame with record_id column
     """
-    # Create mapping from facility_id + patient_id to record_id
+    # Create mapping from facility_id + id to record_id
     mapping = patients_df[['facility_id', 'id', 'record_id']].copy()
 
-    # Merge with ground truth
+    # Ground truth has original_patient_uuid (the patient's UUID within each facility)
+    # Patient data has id (same UUID). Merge on facility_id + these UUIDs.
     gt_with_records = ground_truth_df.merge(
         mapping,
-        left_on=['facility_id', 'patient_id'],
+        left_on=['facility_id', 'original_patient_uuid'],
         right_on=['facility_id', 'id'],
         how='left'
     )
@@ -171,6 +172,9 @@ def add_record_ids_to_ground_truth(ground_truth_df: pd.DataFrame,
     # Drop the duplicate 'id' column if it exists
     if 'id' in gt_with_records.columns:
         gt_with_records = gt_with_records.drop('id', axis=1)
+
+    # Rename to true_patient_id for downstream consistency
+    gt_with_records = gt_with_records.rename(columns={'original_patient_uuid': 'true_patient_id'})
 
     return gt_with_records
 

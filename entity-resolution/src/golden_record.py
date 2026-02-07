@@ -29,7 +29,21 @@ def create_golden_records(matches: pd.Series, patient_data: pd.DataFrame,
     # Build clusters of matched records
     clusters = build_match_clusters(matches)
 
-    logger.info(f"Found {len(clusters)} patient clusters")
+    logger.info(f"Found {len(clusters)} matched clusters")
+
+    # Find singleton records (not in any matched pair)
+    matched_record_ids = set()
+    for cluster in clusters:
+        matched_record_ids.update(cluster)
+
+    all_record_ids = set(patient_data['record_id'])
+    singleton_ids = all_record_ids - matched_record_ids
+
+    # Add singletons as their own clusters
+    for rid in sorted(singleton_ids):
+        clusters.append({rid})
+
+    logger.info(f"Total clusters (including {len(singleton_ids)} singletons): {len(clusters)}")
 
     # Create golden record for each cluster
     golden_records = []

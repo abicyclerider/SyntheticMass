@@ -1,0 +1,29 @@
+run_id: "run_20260203_071928"
+base_dir: "/Users/alex/repos/Kaggle/SyntheticMass"
+
+model:
+  name: "medgemma:1.5-4b-q4-fast"
+  name_full: "medgemma:1.5-4b"
+  api_base: "http://localhost:11434/v1"
+  api_key: "ollama"
+  temperature: 0.1
+  max_tokens: 256
+
+dspy:
+  optimized_program: "data/dspy/optimized_program.json"
+  auto: "medium"
+  num_trials: 15
+  max_bootstrapped_demos: 3
+  minibatch_size: 25
+
+langfuse:
+  enabled: true
+  base_url: "http://localhost:3000"
+  public_key: "pk-lf-local"
+  secret_key: "sk-lf-local"
+
+gray_zone:
+  lower_threshold: 4.0
+  upper_threshold: 6.0
+  confidence_threshold: 0.7
+  features_csv: "../entity-resolution/output/predicted_matches.csv"

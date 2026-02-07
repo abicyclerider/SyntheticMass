@@ -1,0 +1,14 @@
+You are a medical records analyst. Given two patient medical histories from different healthcare facilities, determine if they belong to the same person.
+
+Focus ONLY on clinical patterns — chronic conditions, medications, encounter timing, lab values, and procedures. Do NOT use any demographic information.
+
+Patient A Medical History:
+{{medical_history_a}}
+
+Patient B Medical History:
+{{medical_history_b}}
+
+Respond with:
+- reasoning: Your clinical reasoning
+- is_match: true or false
+- confidence: 0.0 to 1.0

@@ -39,9 +39,8 @@ def classify_pairs(features: pd.DataFrame, config: dict,
             raise ValueError("Ground truth required for logistic_regression method")
         return classify_probabilistic(features, ground_truth, config)
 
-    elif method == 'llm_fallback':
-        # Hierarchical approach with LLM for borderline cases
-        return classify_with_llm_fallback(features, config)
+    elif method == 'tiered':
+        return classify_tiered(features, config)
 
     else:
         raise ValueError(f"Unknown classification method: {method}")
@@ -68,6 +67,54 @@ def classify_threshold(features: pd.DataFrame, config: dict) -> pd.Series:
     matches = features['total_score'] >= threshold
 
     logger.info(f"Threshold classification: {matches.sum()} matches at threshold {threshold}")
+
+    return matches
+
+
+def classify_tiered(features: pd.DataFrame, config: dict) -> pd.Series:
+    """
+    Tiered classification with auto-match, auto-reject, and gray zone.
+
+    Architecture:
+    - auto-match:  score >= auto_match_threshold → match
+    - gray zone:   score between auto_reject and auto_match → apply single_threshold
+    - auto-reject: score < auto_reject_threshold → non-match
+
+    Gray zone uses single_threshold as fallback (LLM matcher is Phase 5).
+
+    Args:
+        features: DataFrame with similarity scores
+        config: Configuration with tiered thresholds
+
+    Returns:
+        Boolean Series indicating matches
+    """
+    cls_config = config.get('classification', {})
+    auto_reject = cls_config.get('auto_reject_threshold', 4.0)
+    auto_match = cls_config.get('auto_match_threshold', 6.0)
+    single_threshold = cls_config.get('single_threshold', 5.60)
+
+    # Ensure total_score exists
+    if 'total_score' not in features.columns:
+        from .comparison import add_composite_features
+        features = add_composite_features(features)
+
+    scores = features['total_score']
+
+    # Auto-match: score >= auto_match_threshold
+    matches = scores >= auto_match
+
+    # Gray zone: between auto_reject and auto_match, apply single_threshold fallback
+    gray_zone = (scores >= auto_reject) & (scores < auto_match)
+    matches = matches | (gray_zone & (scores >= single_threshold))
+
+    # Auto-reject: score < auto_reject_threshold → already False
+
+    logger.info(f"Tiered classification: {matches.sum()} matches")
+    logger.info(f"  Auto-match (>={auto_match}): {(scores >= auto_match).sum()}")
+    logger.info(f"  Gray zone ({auto_reject}-{auto_match}): {gray_zone.sum()}")
+    logger.info(f"  Gray zone matches (>={single_threshold}): {(gray_zone & (scores >= single_threshold)).sum()}")
+    logger.info(f"  Auto-reject (<{auto_reject}): {(scores < auto_reject).sum()}")
 
     return matches
 
@@ -116,70 +163,6 @@ def classify_probabilistic(features: pd.DataFrame, ground_truth: pd.DataFrame,
     return matches
 
 
-def classify_with_llm_fallback(features: pd.DataFrame, config: dict,
-                               medical_data: pd.DataFrame = None) -> pd.Series:
-    """
-    Hierarchical classification with LLM fallback for borderline cases.
-
-    Architecture for future LLM extension:
-    1. Deterministic rules for high-confidence matches (SSN + DOB exact)
-    2. Threshold-based for medium-confidence matches
-    3. LLM comparison of medical histories for borderline cases
-
-    Args:
-        features: DataFrame with similarity scores
-        config: Configuration dictionary
-        medical_data: DataFrame with medical encounter histories (optional)
-
-    Returns:
-        Boolean Series indicating matches
-    """
-    matches = pd.Series(False, index=features.index)
-
-    # Phase 1: Deterministic high-confidence matches
-    if 'high_confidence' in features.columns:
-        high_conf_mask = features['high_confidence'] == True
-        matches[high_conf_mask] = True
-        logger.info(f"High-confidence matches: {high_conf_mask.sum()}")
-
-    # Phase 2: Threshold-based for medium confidence
-    threshold = config.get('classification', {}).get('threshold', 3.5)
-    threshold_upper = threshold + 1.0
-    threshold_lower = threshold - 0.5
-
-    if 'total_score' not in features.columns:
-        from .comparison import add_composite_features
-        features = add_composite_features(features)
-
-    medium_conf_mask = (features['total_score'] >= threshold_upper) & ~matches
-    matches[medium_conf_mask] = True
-    logger.info(f"Medium-confidence matches: {medium_conf_mask.sum()}")
-
-    # Phase 3: LLM fallback for borderline cases (not implemented yet)
-    borderline_mask = (features['total_score'] >= threshold_lower) & (features['total_score'] < threshold_upper) & ~matches
-
-    if borderline_mask.sum() > 0:
-        logger.info(f"Borderline cases for LLM review: {borderline_mask.sum()}")
-
-        if medical_data is not None:
-            # TODO: Implement LLM-based medical history comparison
-            # For each borderline pair:
-            #   1. Extract medical histories for both records
-            #   2. Create prompt with demographics + medical history
-            #   3. Call LLM API
-            #   4. Parse response and update matches
-            logger.warning("LLM fallback not yet implemented, using threshold for borderline cases")
-            llm_matches = features.loc[borderline_mask, 'total_score'] >= threshold
-            matches[borderline_mask] = llm_matches
-        else:
-            logger.warning("Medical data not provided, using threshold for borderline cases")
-            threshold_matches = features.loc[borderline_mask, 'total_score'] >= threshold
-            matches[borderline_mask] = threshold_matches
-
-    logger.info(f"Total matches after LLM fallback: {matches.sum()}")
-
-    return matches
-
 
 def label_features_with_ground_truth(features: pd.DataFrame,
                                     ground_truth: pd.DataFrame) -> pd.DataFrame:
@@ -198,10 +181,11 @@ def label_features_with_ground_truth(features: pd.DataFrame,
 
     # For this to work, we need record_id mapping - assuming it's in ground_truth
     # Ground truth should have: facility_id, patient_id, true_patient_id, record_id
+    true_id_col = 'true_patient_id' if 'true_patient_id' in ground_truth.columns else 'original_patient_uuid'
     true_pairs = set()
 
-    for true_id, group in ground_truth.groupby('true_patient_id'):
-        record_ids = group['record_id'].tolist() if 'record_id' in group.columns else []
+    for true_id, group in ground_truth.groupby(true_id_col):
+        record_ids = group['record_id'].dropna().tolist() if 'record_id' in group.columns else []
 
         for i in range(len(record_ids)):
             for j in range(i + 1, len(record_ids)):

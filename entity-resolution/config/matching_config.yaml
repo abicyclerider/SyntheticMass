@@ -4,32 +4,24 @@ base_dir: "/Users/alex/repos/Kaggle/SyntheticMass"
 
 # Blocking strategy
 blocking:
-  strategy: "lastname_state"  # Options: lastname_state, sorted_neighborhood, zip_birthyear, multipass
-  sorted_neighborhood_window: 5
+  strategy: "aggressive_multipass"  # Validated: 100% recall with 4-pass union
 
-# Comparison thresholds (to be tuned based on exploration)
+# Comparison (8-feature system, max score = 8.0)
 comparison:
-  first_name_threshold: 0.85    # Jaro-Winkler
-  last_name_threshold: 0.85     # Jaro-Winkler
-  maiden_name_threshold: 0.85   # Jaro-Winkler
-  address_threshold: 0.80       # Jaro-Winkler (lower for abbreviations)
-  city_threshold: 0.90          # Jaro-Winkler
-  ssn_exact_match: true
-  ssn_levenshtein_threshold: 2  # Used if ssn_exact_match is false
-  birthdate_tolerance_days: 1
-  zip_exact_match: true
-  state_exact_match: true
+  ssn_fuzzy: false        # Exact match (validated, F1=0.983)
+  birthdate_fuzzy: false  # Exact match (validated, F1=0.983)
 
 # Classification
 classification:
-  method: "threshold"  # Options: threshold, logistic_regression, llm_fallback
-  threshold: 3.5       # Minimum total similarity score for threshold method
-  train_test_split: 0.8  # For logistic_regression method
+  method: "tiered"
+  auto_reject_threshold: 4.0   # Score < 4.0 → definite non-match
+  auto_match_threshold: 6.0    # Score >= 6.0 → definite match
+  single_threshold: 5.60       # Gray zone fallback threshold (F1=0.983)
 
 # Golden record creation
 golden_record:
-  conflict_resolution: "most_frequent"  # Options: most_frequent, most_recent, least_errors
-  include_provenance: true  # Track which facilities contributed to golden record
+  conflict_resolution: "most_frequent"
+  include_provenance: true
 
 # Output
 output:

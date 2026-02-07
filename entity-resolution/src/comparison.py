@@ -45,94 +45,55 @@ def build_comparison_features(pairs: pd.MultiIndex, df: pd.DataFrame,
 
 def create_custom_comparator(config: dict) -> rl.Compare:
     """
-    Create a recordlinkage Compare object with custom comparison methods.
+    Create a recordlinkage Compare object matching the validated 8-feature setup.
+
+    Features (8 total, max score = 8.0):
+      1. first_name_sim  — Jaro-Winkler (continuous 0-1)
+      2. last_name_sim   — Jaro-Winkler (continuous 0-1)
+      3. address_sim     — Jaro-Winkler (continuous 0-1)
+      4. city_sim        — Jaro-Winkler (continuous 0-1)
+      5. state_match     — Exact (0 or 1)
+      6. zip_match       — Exact (0 or 1)
+      7. ssn_match       — Exact (0 or 1) by default, or fuzzy via config
+      8. birthdate_match — Exact (0 or 1) by default, or fuzzy via config
 
     Args:
-        config: Configuration dictionary with comparison thresholds
+        config: Configuration dictionary with optional ssn_fuzzy/birthdate_fuzzy flags
 
     Returns:
         Configured Compare object
     """
     compare = rl.Compare()
 
-    # First name: Jaro-Winkler similarity
-    compare.string(
-        'first_name', 'first_name',
-        method='jarowinkler',
-        threshold=config.get('first_name_threshold', 0.85),
-        label='first_name_sim'
-    )
+    # 1. First name: Jaro-Winkler similarity (no threshold — continuous score)
+    compare.string('first_name', 'first_name', method='jarowinkler', label='first_name_sim')
 
-    # Last name: Jaro-Winkler similarity
-    compare.string(
-        'last_name', 'last_name',
-        method='jarowinkler',
-        threshold=config.get('last_name_threshold', 0.85),
-        label='last_name_sim'
-    )
+    # 2. Last name: Jaro-Winkler similarity
+    compare.string('last_name', 'last_name', method='jarowinkler', label='last_name_sim')
 
-    # Maiden name: Jaro-Winkler similarity (if available)
-    compare.string(
-        'maiden_name', 'maiden_name',
-        method='jarowinkler',
-        threshold=config.get('maiden_name_threshold', 0.85),
-        label='maiden_name_sim',
-        missing_value=0.5  # Neutral score if missing
-    )
+    # 3. Address: Jaro-Winkler similarity
+    compare.string('address', 'address', method='jarowinkler', label='address_sim')
 
-    # Address: Jaro-Winkler with lower threshold (handles abbreviations)
-    compare.string(
-        'address', 'address',
-        method='jarowinkler',
-        threshold=config.get('address_threshold', 0.80),
-        label='address_sim'
-    )
+    # 4. City: Jaro-Winkler similarity
+    compare.string('city', 'city', method='jarowinkler', label='city_sim')
 
-    # City: Jaro-Winkler
-    compare.string(
-        'city', 'city',
-        method='jarowinkler',
-        threshold=config.get('city_threshold', 0.90),
-        label='city_sim'
-    )
+    # 5. State: Exact match
+    compare.exact('state', 'state', label='state_match')
 
-    # State: Exact match
-    if config.get('state_exact_match', True):
-        compare.exact('state', 'state', label='state_match')
+    # 6. ZIP: Exact match
+    compare.exact('zip', 'zip', label='zip_match')
+
+    # 7. SSN: Exact match (default) or fuzzy Levenshtein
+    if config.get('ssn_fuzzy', False):
+        compare.string('ssn', 'ssn', method='levenshtein', label='ssn_match')
     else:
-        compare.string('state', 'state', method='jarowinkler', label='state_sim')
-
-    # ZIP: Exact match or Levenshtein
-    if config.get('zip_exact_match', True):
-        compare.exact('zip', 'zip', label='zip_match')
-    else:
-        compare.string('zip', 'zip', method='levenshtein', label='zip_sim')
-
-    # SSN: Exact or Levenshtein distance
-    if config.get('ssn_exact_match', True):
         compare.exact('ssn', 'ssn', label='ssn_match')
-    else:
-        compare.string(
-            'ssn', 'ssn',
-            method='levenshtein',
-            threshold=config.get('ssn_levenshtein_threshold', 2),
-            label='ssn_sim'
-        )
 
-    # Birthdate: Date comparison with tolerance
-    birthdate_tolerance = config.get('birthdate_tolerance_days', 1)
-    if birthdate_tolerance > 0:
-        # Use custom date comparison with tolerance
-        compare.date(
-            'birthdate', 'birthdate',
-            label='birthdate_match'
-        )
+    # 8. Birthdate: Exact match (default) or fuzzy date comparison
+    if config.get('birthdate_fuzzy', False):
+        compare.date('birthdate', 'birthdate', label='birthdate_match')
     else:
-        # Exact date match
         compare.exact('birthdate', 'birthdate', label='birthdate_match')
-
-    # Gender: Exact match
-    compare.exact('gender', 'gender', label='gender_match')
 
     return compare
 
@@ -209,11 +170,14 @@ def add_composite_features(features: pd.DataFrame) -> pd.DataFrame:
     """
     features = features.copy()
 
-    # Total similarity score (sum of all features)
-    features['total_score'] = features.sum(axis=1)
+    # Total similarity score (sum of the 8 base features only)
+    feature_cols = ['first_name_sim', 'last_name_sim', 'address_sim', 'city_sim',
+                    'state_match', 'zip_match', 'ssn_match', 'birthdate_match']
+    cols_present = [c for c in feature_cols if c in features.columns]
+    features['total_score'] = features[cols_present].sum(axis=1)
 
-    # Name similarity (average of first, last, maiden)
-    name_cols = [c for c in ['first_name_sim', 'last_name_sim', 'maiden_name_sim'] if c in features.columns]
+    # Name similarity (average of first, last)
+    name_cols = [c for c in ['first_name_sim', 'last_name_sim'] if c in features.columns]
     if name_cols:
         features['name_score'] = features[name_cols].mean(axis=1)
 

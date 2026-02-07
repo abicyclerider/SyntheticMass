@@ -2,12 +2,26 @@
 Evaluation metrics for entity resolution performance.
 
 Compares predicted matches against ground truth to calculate precision, recall, F1.
+Delegates core metrics to shared.evaluation.
 """
+
+import sys
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
 from typing import Dict, Tuple
 import logging
+
+# Add project root to path so shared module is importable
+_project_root = str(Path(__file__).resolve().parent.parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from shared.evaluation import (  # noqa: E402
+    calculate_confusion_matrix,
+    calculate_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,19 +39,12 @@ def evaluate_matches(predicted_matches: pd.Series, ground_truth: pd.DataFrame,
     Returns:
         Dictionary with evaluation metrics
     """
-    # Get predicted pairs
     predicted_pairs = set(predicted_matches[predicted_matches].index.tolist())
-
-    # Get true pairs from ground truth
     true_pairs = generate_true_pairs_from_ground_truth(ground_truth)
 
-    # Calculate confusion matrix
     tp, fp, fn = calculate_confusion_matrix(predicted_pairs, true_pairs)
-
-    # Calculate metrics
     metrics = calculate_metrics(tp, fp, fn)
 
-    # Add pair counts
     metrics['predicted_pairs'] = len(predicted_pairs)
     metrics['true_pairs'] = len(true_pairs)
 
@@ -56,67 +63,19 @@ def generate_true_pairs_from_ground_truth(ground_truth: pd.DataFrame) -> set:
     Returns:
         Set of tuples (record_id_1, record_id_2) for true matches
     """
+    true_id_col = 'true_patient_id' if 'true_patient_id' in ground_truth.columns else 'original_patient_uuid'
+
     true_pairs = set()
 
-    for true_id, group in ground_truth.groupby('true_patient_id'):
-        record_ids = group['record_id'].tolist() if 'record_id' in group.columns else []
+    for true_id, group in ground_truth.groupby(true_id_col):
+        record_ids = group['record_id'].dropna().tolist() if 'record_id' in group.columns else []
 
-        # Generate all pairs within this group
         for i in range(len(record_ids)):
             for j in range(i + 1, len(record_ids)):
-                # Store pairs in sorted order for consistency
                 pair = tuple(sorted([record_ids[i], record_ids[j]]))
                 true_pairs.add(pair)
 
     return true_pairs
-
-
-def calculate_confusion_matrix(predicted_pairs: set, true_pairs: set) -> Tuple[int, int, int]:
-    """
-    Calculate confusion matrix components.
-
-    Args:
-        predicted_pairs: Set of predicted matching pairs
-        true_pairs: Set of true matching pairs
-
-    Returns:
-        Tuple of (true_positives, false_positives, false_negatives)
-    """
-    # Normalize pairs to sorted tuples
-    predicted_normalized = {tuple(sorted(p)) for p in predicted_pairs}
-    true_normalized = {tuple(sorted(p)) for p in true_pairs}
-
-    tp = len(predicted_normalized & true_normalized)  # Intersection
-    fp = len(predicted_normalized - true_normalized)  # Predicted but not true
-    fn = len(true_normalized - predicted_normalized)  # True but not predicted
-
-    return tp, fp, fn
-
-
-def calculate_metrics(tp: int, fp: int, fn: int) -> dict:
-    """
-    Calculate precision, recall, and F1 score from confusion matrix.
-
-    Args:
-        tp: True positives
-        fp: False positives
-        fn: False negatives
-
-    Returns:
-        Dictionary with precision, recall, f1_score
-    """
-    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-    f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
-
-    return {
-        'true_positives': tp,
-        'false_positives': fp,
-        'false_negatives': fn,
-        'precision': precision,
-        'recall': recall,
-        'f1_score': f1_score
-    }
 
 
 def error_analysis(predicted_matches: pd.Series, ground_truth: pd.DataFrame,
@@ -136,20 +95,15 @@ def error_analysis(predicted_matches: pd.Series, ground_truth: pd.DataFrame,
     predicted_pairs = set(predicted_matches[predicted_matches].index.tolist())
     true_pairs = generate_true_pairs_from_ground_truth(ground_truth)
 
-    # Normalize pairs
     predicted_normalized = {tuple(sorted(p)) for p in predicted_pairs}
     true_normalized = {tuple(sorted(p)) for p in true_pairs}
 
-    # Find false positives and false negatives
     false_positives = predicted_normalized - true_normalized
     false_negatives = true_normalized - predicted_normalized
 
     logger.info(f"Error analysis: {len(false_positives)} FP, {len(false_negatives)} FN")
 
-    # Analyze false positives
     fp_analysis = analyze_error_pairs(false_positives, features, patient_data, 'false_positive')
-
-    # Analyze false negatives
     fn_analysis = analyze_error_pairs(false_negatives, features, patient_data, 'false_negative')
 
     return {
@@ -178,7 +132,6 @@ def analyze_error_pairs(error_pairs: set, features: pd.DataFrame,
 
     for pair in error_pairs:
         if pair in features.index or (pair[1], pair[0]) in features.index:
-            # Get features for this pair
             if pair in features.index:
                 feat_row = features.loc[pair]
             else:
@@ -215,9 +168,9 @@ def evaluate_golden_records(golden_records: pd.DataFrame, ground_truth: pd.DataF
         Dictionary with golden record metrics
     """
     num_golden = len(golden_records)
-    num_true_patients = ground_truth['true_patient_id'].nunique()
+    true_id_col = 'true_patient_id' if 'true_patient_id' in ground_truth.columns else 'original_patient_uuid'
+    num_true_patients = ground_truth[true_id_col].nunique()
 
-    # Check if number of golden records matches true patient count
     count_accuracy = num_golden == num_true_patients
 
     metrics = {
@@ -240,8 +193,6 @@ def calculate_cluster_purity(clusters: list, ground_truth: pd.DataFrame) -> floa
     """
     Calculate purity of clusters (golden records).
 
-    Purity: for each cluster, what percentage of records belong to the majority class?
-
     Args:
         clusters: List of sets containing record_ids
         ground_truth: Ground truth DataFrame
@@ -249,7 +200,6 @@ def calculate_cluster_purity(clusters: list, ground_truth: pd.DataFrame) -> floa
     Returns:
         Average purity score (0-1)
     """
-    # Create mapping of record_id to true_patient_id
     record_to_true = {}
     if 'record_id' in ground_truth.columns:
         record_to_true = dict(zip(ground_truth['record_id'], ground_truth['true_patient_id']))
@@ -257,13 +207,11 @@ def calculate_cluster_purity(clusters: list, ground_truth: pd.DataFrame) -> floa
     purities = []
 
     for cluster in clusters:
-        # Get true patient IDs for records in this cluster
         true_ids = [record_to_true.get(rid) for rid in cluster if rid in record_to_true]
 
         if not true_ids:
             continue
 
-        # Find majority class
         from collections import Counter
         counter = Counter(true_ids)
         majority_count = counter.most_common(1)[0][1]

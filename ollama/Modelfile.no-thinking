@@ -1,0 +1,23 @@
+# MedGemma 1.5 4B Q4 — with thinking tokens suppressed
+# Pre-fills <unused95> in the model turn so the model skips chain-of-thought
+# and generates the answer directly.
+#
+# Build: ollama create medgemma:1.5-4b-q4-fast -f ollama/Modelfile.no-thinking
+
+FROM medgemma:1.5-4b-q4
+
+TEMPLATE """{{ if .System }}<start_of_turn>system
+{{ .System }}<end_of_turn>
+{{ end }}{{ if .Prompt }}<start_of_turn>user
+{{ .Prompt }}<end_of_turn>
+{{ end }}<start_of_turn>model
+<unused95>{{ .Response }}<end_of_turn>
+"""
+
+SYSTEM You are MedGemma, a medical AI assistant. Provide accurate, evidence-based medical information and analysis. Answer directly and concisely.
+
+PARAMETER stop <start_of_turn>
+PARAMETER stop <end_of_turn>
+PARAMETER temperature 0.7
+PARAMETER top_k 40
+PARAMETER top_p 0.9

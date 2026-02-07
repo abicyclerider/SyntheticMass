@@ -14,6 +14,8 @@ from pathlib import Path
 import logging
 import argparse
 
+import os
+
 import dspy
 import pandas as pd
 
@@ -142,16 +144,32 @@ def run_optimization(config: dict):
     Args:
         config: Configuration dictionary
     """
-    # Configure DSPy LM
+    # Configure DSPy task LM (local MedGemma)
     model_config = config['model']
-    lm = dspy.LM(
+    task_lm = dspy.LM(
         model=f"openai/{model_config['name']}",
         api_base=model_config['api_base'],
         api_key=model_config['api_key'],
         temperature=model_config.get('temperature', 0.1),
         max_tokens=model_config.get('max_tokens', 256),
     )
-    dspy.configure(lm=lm)
+    dspy.configure(lm=task_lm)
+
+    # Configure prompt model (stronger LM for instruction generation)
+    dspy_config = config.get('dspy', {})
+    prompt_model_config = dspy_config.get('prompt_model')
+    prompt_lm = None
+    if prompt_model_config:
+        api_key_env = prompt_model_config.get('api_key_env', '')
+        api_key = os.environ.get(api_key_env, '')
+        if api_key:
+            prompt_lm = dspy.LM(
+                model=prompt_model_config['provider'],
+                api_key=api_key,
+            )
+            logger.info(f"Using prompt model: {prompt_model_config['provider']}")
+        else:
+            logger.warning(f"${api_key_env} not set — falling back to task model for prompt generation")
 
     # Build training data
     examples = build_training_data(config)
@@ -170,12 +188,15 @@ def run_optimization(config: dict):
     matcher = MedicalRecordMatcher()
 
     # Run MIPROv2
-    dspy_config = config.get('dspy', {})
-    optimizer = dspy.MIPROv2(
+    optimizer_kwargs = dict(
         metric=accuracy_metric,
         auto=dspy_config.get('auto', 'medium'),
         num_threads=1,  # Serial for local Ollama
     )
+    if prompt_lm:
+        optimizer_kwargs['prompt_model'] = prompt_lm
+        optimizer_kwargs['task_model'] = task_lm
+    optimizer = dspy.MIPROv2(**optimizer_kwargs)
 
     optimized = optimizer.compile(
         matcher,

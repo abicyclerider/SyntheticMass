@@ -31,7 +31,7 @@ Classical Pipeline (entity-resolution/)
 
 | Tool | Role |
 |------|------|
-| **DSPy** | Prompt optimization framework. Defines the `MedicalRecordMatchSignature`, wraps it in `ChainOfThought`, and runs MIPROv2 to optimize instructions on gray zone training data. |
+| **DSPy** | Prompt optimization framework. Defines the `MedicalRecordMatchSignature`, wraps it in `ChainOfThought`, and runs MIPROv2 to optimize instructions on gray zone training data. Supports using a separate, stronger prompt model (e.g. Claude Sonnet) for instruction generation while keeping the local task model for evaluation. |
 | **Promptfoo** | Prompt regression testing. Evaluates baseline vs. optimized prompts across multiple models and curated test cases. Catches regressions before deployment. |
 | **Langfuse** | LLM observability. Traces every DSPy/OpenAI call with latency, token counts, and inputs/outputs for debugging and monitoring. |
 
@@ -75,9 +75,11 @@ llm-entity-resolution/
 
 3. **Python 3.12+** with dependencies (see Installation).
 
-4. **Node.js** (optional) — For Promptfoo prompt testing.
+4. **API key for prompt model** (optional) — For DSPy optimization with a stronger prompt model. Set `ANTHROPIC_API_KEY` (or the relevant provider key) in your environment. Without this, optimization falls back to the local task model.
 
-5. **Docker** (optional) — For Langfuse observability.
+5. **Node.js** (optional) — For Promptfoo prompt testing.
+
+6. **Docker** (optional) — For Langfuse observability.
 
 ## Installation
 
@@ -104,9 +106,15 @@ docker compose up -d
 
 ### 1. Optimize: tune prompts with MIPROv2
 
-Loads gray zone pairs, generates medical history summaries, and runs DSPy's MIPROv2 optimizer to find the best instructions for the `MedicalRecordMatcher`.
+Loads gray zone pairs, generates medical history summaries, and runs DSPy's MIPROv2 optimizer to find the best instructions for the `MedicalRecordMatcher`. If a prompt model is configured (e.g. Claude Sonnet), it generates instruction candidates while MedGemma handles task evaluation.
 
 ```bash
+# With a stronger prompt model (recommended):
+export ANTHROPIC_API_KEY="sk-ant-..."
+cd llm-entity-resolution
+python -m src.optimize --config config/llm_config.yaml
+
+# Without (falls back to task model for everything):
 cd llm-entity-resolution
 python -m src.optimize --config config/llm_config.yaml
 ```
@@ -168,6 +176,9 @@ dspy:
   num_trials: 15                      # Optimization trials
   max_bootstrapped_demos: 3           # Few-shot examples to bootstrap
   minibatch_size: 25                  # Examples per optimization batch
+  prompt_model:                       # Optional: stronger model for instruction generation
+    provider: "anthropic/claude-sonnet-4-5-20250929"
+    api_key_env: "ANTHROPIC_API_KEY"  # Reads API key from this env var
 
 langfuse:
   enabled: true                       # Set false to disable tracing
@@ -191,7 +202,7 @@ Defines `MedicalRecordMatchSignature` (inputs: two medical history summaries; ou
 Converts raw Synthea CSVs into a structured text summary per patient. Conditions and medications are listed in full (compact and highly discriminating). Observations are aggregated to key vitals (height, weight, BMI, blood pressure, A1c, glucose, cholesterol). Encounters are summarized by type and count with the 3 most recent listed. Designed for MedGemma 4B's limited context window.
 
 ### optimize.py
-Loads gray zone pairs from the classical pipeline, joins with ground truth for labels, generates medical history summaries, and runs MIPROv2 to optimize the `MedicalRecordMatcher`. Splits 75/25 train/val and reports validation accuracy. Saves the optimized program to `data/dspy/optimized_program.json`.
+Loads gray zone pairs from the classical pipeline, joins with ground truth for labels, generates medical history summaries, and runs MIPROv2 to optimize the `MedicalRecordMatcher`. Supports a separate prompt model (e.g. Claude Sonnet) for generating instruction candidates while the task model (MedGemma) handles evaluation. Falls back to the task model if no API key is set. Splits 75/25 train/val and reports validation accuracy. Saves the optimized program to `data/dspy/optimized_program.json`.
 
 ### classify.py
 The full hybrid classification pipeline. Loads classical pipeline scored pairs, splits by threshold into auto-reject / auto-match / gray zone, runs the DSPy matcher on gray zone pairs, merges all decisions, evaluates against ground truth, and saves predictions + metrics.

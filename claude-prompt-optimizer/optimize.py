@@ -546,7 +546,8 @@ async def run_decompose_evaluation(config: dict,
 
 async def run_decompose_optimization(config: dict, max_iterations: int,
                                       experiment_name: str | None = None,
-                                      threshold: int | None = None):
+                                      threshold: int | None = None,
+                                      initial_prompts_path: Path | None = None):
     """
     Run the Claude-powered decompose sub-prompt optimization loop.
 
@@ -577,13 +578,16 @@ async def run_decompose_optimization(config: dict, max_iterations: int,
     claude_model = config.get('claude', {}).get('model', 'claude-opus-4-6')
 
     # Save metadata
+    decompose_meta = {
+        'threshold': threshold,
+        'max_tokens_sub': max_tokens_sub,
+        'weights': weights,
+    }
+    if initial_prompts_path:
+        decompose_meta['warm_start_from'] = str(initial_prompts_path)
     _save_experiment_metadata(output_dir, config, max_iterations, experiment_name,
                               strategy='decompose-opt',
-                              decompose_config={
-                                  'threshold': threshold,
-                                  'max_tokens_sub': max_tokens_sub,
-                                  'weights': weights,
-                              })
+                              decompose_config=decompose_meta)
 
     # Load training data
     logger.info("Loading training data...")
@@ -608,10 +612,20 @@ async def run_decompose_optimization(config: dict, max_iterations: int,
     model_name = model_config['name']
     temperature = model_config.get('temperature', 0.1)
 
-    # Initialize state
-    current_prompts = dict(DEFAULT_SUB_PROMPTS)
-    current_weights = dict(weights)
-    current_threshold = threshold
+    # Initialize state — warm-start from previous run if provided
+    if initial_prompts_path:
+        logger.info(f"Warm-starting from {initial_prompts_path}")
+        with open(initial_prompts_path) as f:
+            prev = json.load(f)
+        current_prompts = prev['prompts']
+        current_weights = prev.get('weights', dict(weights))
+        current_threshold = prev.get('threshold', threshold)
+        logger.info(f"  Loaded prompts from iteration {prev.get('iteration', '?')} "
+                    f"(val_accuracy={prev.get('val_accuracy', '?')})")
+    else:
+        current_prompts = dict(DEFAULT_SUB_PROMPTS)
+        current_weights = dict(weights)
+        current_threshold = threshold
 
     iteration_history = []
     best_val_accuracy = -1.0
@@ -1808,6 +1822,8 @@ def main():
                         help='Evaluation strategy (default: single-shot)')
     parser.add_argument('--threshold', type=int, default=None,
                         help='Voting threshold for decompose strategy (default: 3)')
+    parser.add_argument('--from', dest='from_experiment', type=str, default=None,
+                        help='Warm-start from a previous experiment (e.g. decompose-opt-v1)')
     parser.add_argument('--list', action='store_true',
                         help='List all past experiments and exit')
     args = parser.parse_args()
@@ -1823,11 +1839,19 @@ def main():
 
     config = load_config(args.config)
 
+    # Resolve --from to a best_sub_prompts.json path
+    initial_prompts_path = None
+    if args.from_experiment:
+        candidate = Path(__file__).parent / "output" / args.from_experiment / "best_sub_prompts.json"
+        if not candidate.exists():
+            parser.error(f"--from: {candidate} does not exist")
+        initial_prompts_path = candidate
+
     if args.strategy == 'decompose':
         if args.iterations and args.iterations > 0:
             # Decompose optimization loop
             anyio.run(run_decompose_optimization, config, args.iterations,
-                      args.name, args.threshold)
+                      args.name, args.threshold, initial_prompts_path)
         else:
             # Single-pass decompose evaluation
             anyio.run(run_decompose_evaluation, config, args.name, args.threshold)

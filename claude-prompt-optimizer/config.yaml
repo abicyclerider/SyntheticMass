@@ -1,0 +1,30 @@
+base_dir: "/Users/alex/repos/Kaggle/SyntheticMass"
+run_id: "run_20260203_071928"
+
+model:
+  name: "medgemma:1.5-4b-q4-fast"
+  api_base: "http://localhost:11434/v1"
+  api_key: "ollama"
+  temperature: 0.1
+  max_tokens: 256
+
+claude:
+  model: "claude-opus-4-6"
+
+optimization:
+  max_iterations: 8
+  confidence_threshold: 0.5
+
+gray_zone:
+  lower_threshold: 4.0
+  upper_threshold: 6.0
+  features_csv: "entity-resolution/output/predicted_matches.csv"
+
+decompose:
+  threshold: 3
+  max_tokens_sub: 64
+  weights:
+    condition: 2
+    medication: 1
+    timeline: 1
+    contradiction: 2

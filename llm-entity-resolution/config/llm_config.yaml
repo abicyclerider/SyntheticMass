@@ -7,7 +7,7 @@ model:
   api_base: "http://localhost:11434/v1"
   api_key: "ollama"
   temperature: 0.1
-  max_tokens: 1024
+  max_tokens: 256
 
 dspy:
   optimized_program: "data/dspy/optimized_program.json"
@@ -16,7 +16,7 @@ dspy:
   max_bootstrapped_demos: 3
   minibatch_size: 25
   prompt_model:
-    provider: "anthropic/claude-sonnet-4-5-20250929"
+    provider: "anthropic/claude-haiku-4-5-20251001"
     api_key_env: "ANTHROPIC_API_KEY"
 
 langfuse:

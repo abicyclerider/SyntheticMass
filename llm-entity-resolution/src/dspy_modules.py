@@ -20,20 +20,18 @@ class MedicalRecordMatchSignature(dspy.Signature):
     medical_history_b: str = dspy.InputField(
         desc="Structured medical history summary for Patient B")
 
-    reasoning: str = dspy.OutputField(
-        desc="Clinical reasoning for the match decision")
     is_match: bool = dspy.OutputField(
         desc="True if the two histories belong to the same patient, False otherwise")
     confidence: float = dspy.OutputField(
-        desc="Confidence score from 0.0 (uncertain) to 1.0 (certain)")
+        desc="A single decimal number between 0.0 and 1.0, e.g. 0.85")
 
 
 class MedicalRecordMatcher(dspy.Module):
-    """DSPy module that uses ChainOfThought to compare medical histories."""
+    """DSPy module that compares medical histories for entity resolution."""
 
     def __init__(self):
         super().__init__()
-        self.matcher = dspy.ChainOfThought(MedicalRecordMatchSignature)
+        self.matcher = dspy.Predict(MedicalRecordMatchSignature)
 
     def forward(self, medical_history_a, medical_history_b):
         return self.matcher(

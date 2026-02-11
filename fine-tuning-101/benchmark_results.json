@@ -1,0 +1,2404 @@
+{
+  "model": "google/medgemma-27b-text-it",
+  "quantization": "bf16",
+  "system_prompt": null,
+  "gpu": {
+    "device": "cuda",
+    "gpu_name": "NVIDIA A100-SXM4-80GB",
+    "gpu_memory_gb": 85.1,
+    "gpu_count": 1
+  },
+  "dataset": "abicyclerider/entity-resolution-pairs",
+  "n_test_pairs": 338,
+  "n_parseable": 338,
+  "n_unparseable": 0,
+  "metrics": {
+    "accuracy": 0.713,
+    "precision": 0.95,
+    "recall": 0.4497,
+    "f1": 0.6104
+  },
+  "confusion_matrix": [
+    [
+      165,
+      4
+    ],
+    [
+      93,
+      76
+    ]
+  ],
+  "timing": {
+    "model_load_s": 14.3,
+    "total_inference_s": 209.9,
+    "avg_per_pair_s": 0.62
+  },
+  "per_pair": [
+    {
+      "index": 0,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.88
+    },
+    {
+      "index": 1,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.38
+    },
+    {
+      "index": 2,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.53
+    },
+    {
+      "index": 3,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.48
+    },
+    {
+      "index": 4,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.73
+    },
+    {
+      "index": 5,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.61
+    },
+    {
+      "index": 6,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.68
+    },
+    {
+      "index": 7,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.61
+    },
+    {
+      "index": 8,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.78
+    },
+    {
+      "index": 9,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 10,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 11,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.37
+    },
+    {
+      "index": 12,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 13,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.57
+    },
+    {
+      "index": 14,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 15,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.33
+    },
+    {
+      "index": 16,
+      "true_label": false,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 2.47
+    },
+    {
+      "index": 17,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.78
+    },
+    {
+      "index": 18,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.56
+    },
+    {
+      "index": 19,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.65
+    },
+    {
+      "index": 20,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.47
+    },
+    {
+      "index": 21,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.29
+    },
+    {
+      "index": 22,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.14
+    },
+    {
+      "index": 23,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.45
+    },
+    {
+      "index": 24,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.76
+    },
+    {
+      "index": 25,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.76
+    },
+    {
+      "index": 26,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.38
+    },
+    {
+      "index": 27,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.77
+    },
+    {
+      "index": 28,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.73
+    },
+    {
+      "index": 29,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.83
+    },
+    {
+      "index": 30,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 31,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.4
+    },
+    {
+      "index": 32,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.48
+    },
+    {
+      "index": 33,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.76
+    },
+    {
+      "index": 34,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.58
+    },
+    {
+      "index": 35,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.57
+    },
+    {
+      "index": 36,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.72
+    },
+    {
+      "index": 37,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 38,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.84
+    },
+    {
+      "index": 39,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.16
+    },
+    {
+      "index": 40,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.65
+    },
+    {
+      "index": 41,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.65
+    },
+    {
+      "index": 42,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.39
+    },
+    {
+      "index": 43,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.53
+    },
+    {
+      "index": 44,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.78
+    },
+    {
+      "index": 45,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 46,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.87
+    },
+    {
+      "index": 47,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.48
+    },
+    {
+      "index": 48,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.48
+    },
+    {
+      "index": 49,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 50,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.68
+    },
+    {
+      "index": 51,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.48
+    },
+    {
+      "index": 52,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.45
+    },
+    {
+      "index": 53,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 54,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.39
+    },
+    {
+      "index": 55,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.38
+    },
+    {
+      "index": 56,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.56
+    },
+    {
+      "index": 57,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.46
+    },
+    {
+      "index": 58,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 59,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 60,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.68
+    },
+    {
+      "index": 61,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.53
+    },
+    {
+      "index": 62,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.5
+    },
+    {
+      "index": 63,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.78
+    },
+    {
+      "index": 64,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.45
+    },
+    {
+      "index": 65,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.57
+    },
+    {
+      "index": 66,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 67,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.77
+    },
+    {
+      "index": 68,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.49
+    },
+    {
+      "index": 69,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.48
+    },
+    {
+      "index": 70,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.47
+    },
+    {
+      "index": 71,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.85
+    },
+    {
+      "index": 72,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.47
+    },
+    {
+      "index": 73,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.47
+    },
+    {
+      "index": 74,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.37
+    },
+    {
+      "index": 75,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.65
+    },
+    {
+      "index": 76,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.69
+    },
+    {
+      "index": 77,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.53
+    },
+    {
+      "index": 78,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 79,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.65
+    },
+    {
+      "index": 80,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.56
+    },
+    {
+      "index": 81,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.74
+    },
+    {
+      "index": 82,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.29
+    },
+    {
+      "index": 83,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.56
+    },
+    {
+      "index": 84,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.53
+    },
+    {
+      "index": 85,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.39
+    },
+    {
+      "index": 86,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 87,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.66
+    },
+    {
+      "index": 88,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.31
+    },
+    {
+      "index": 89,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 90,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 91,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.08
+    },
+    {
+      "index": 92,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.88
+    },
+    {
+      "index": 93,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.66
+    },
+    {
+      "index": 94,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.01
+    },
+    {
+      "index": 95,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.57
+    },
+    {
+      "index": 96,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 97,
+      "true_label": false,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.94
+    },
+    {
+      "index": 98,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.42
+    },
+    {
+      "index": 99,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 100,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.4
+    },
+    {
+      "index": 101,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.61
+    },
+    {
+      "index": 102,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 103,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.95
+    },
+    {
+      "index": 104,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.33
+    },
+    {
+      "index": 105,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.37
+    },
+    {
+      "index": 106,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 107,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.34
+    },
+    {
+      "index": 108,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.55
+    },
+    {
+      "index": 109,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.54
+    },
+    {
+      "index": 110,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 111,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.04
+    },
+    {
+      "index": 112,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.74
+    },
+    {
+      "index": 113,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 114,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 115,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.62
+    },
+    {
+      "index": 116,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.84
+    },
+    {
+      "index": 117,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.65
+    },
+    {
+      "index": 118,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 119,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.87
+    },
+    {
+      "index": 120,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.39
+    },
+    {
+      "index": 121,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.38
+    },
+    {
+      "index": 122,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.45
+    },
+    {
+      "index": 123,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.39
+    },
+    {
+      "index": 124,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.42
+    },
+    {
+      "index": 125,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.37
+    },
+    {
+      "index": 126,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 127,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 128,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.37
+    },
+    {
+      "index": 129,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.78
+    },
+    {
+      "index": 130,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.05
+    },
+    {
+      "index": 131,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.78
+    },
+    {
+      "index": 132,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.34
+    },
+    {
+      "index": 133,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 134,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.09
+    },
+    {
+      "index": 135,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.98
+    },
+    {
+      "index": 136,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.66
+    },
+    {
+      "index": 137,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.68
+    },
+    {
+      "index": 138,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 139,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 140,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.66
+    },
+    {
+      "index": 141,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.37
+    },
+    {
+      "index": 142,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 143,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 144,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 145,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.14
+    },
+    {
+      "index": 146,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.37
+    },
+    {
+      "index": 147,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.73
+    },
+    {
+      "index": 148,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 149,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 150,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.01
+    },
+    {
+      "index": 151,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.61
+    },
+    {
+      "index": 152,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.74
+    },
+    {
+      "index": 153,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.17
+    },
+    {
+      "index": 154,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.74
+    },
+    {
+      "index": 155,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.5
+    },
+    {
+      "index": 156,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.55
+    },
+    {
+      "index": 157,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 158,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.4
+    },
+    {
+      "index": 159,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.41
+    },
+    {
+      "index": 160,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.4
+    },
+    {
+      "index": 161,
+      "true_label": false,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.01
+    },
+    {
+      "index": 162,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.37
+    },
+    {
+      "index": 163,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.61
+    },
+    {
+      "index": 164,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.41
+    },
+    {
+      "index": 165,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.84
+    },
+    {
+      "index": 166,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 167,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.65
+    },
+    {
+      "index": 168,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.78
+    },
+    {
+      "index": 169,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.8
+    },
+    {
+      "index": 170,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.73
+    },
+    {
+      "index": 171,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 172,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.34
+    },
+    {
+      "index": 173,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 174,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.95
+    },
+    {
+      "index": 175,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.14
+    },
+    {
+      "index": 176,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.37
+    },
+    {
+      "index": 177,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 178,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.87
+    },
+    {
+      "index": 179,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.66
+    },
+    {
+      "index": 180,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.45
+    },
+    {
+      "index": 181,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.34
+    },
+    {
+      "index": 182,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.74
+    },
+    {
+      "index": 183,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 184,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 185,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.49
+    },
+    {
+      "index": 186,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.62
+    },
+    {
+      "index": 187,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 188,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.98
+    },
+    {
+      "index": 189,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.39
+    },
+    {
+      "index": 190,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 191,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.33
+    },
+    {
+      "index": 192,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 193,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 194,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.34
+    },
+    {
+      "index": 195,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.88
+    },
+    {
+      "index": 196,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.55
+    },
+    {
+      "index": 197,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.68
+    },
+    {
+      "index": 198,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.47
+    },
+    {
+      "index": 199,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 200,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.55
+    },
+    {
+      "index": 201,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.36
+    },
+    {
+      "index": 202,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 203,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.57
+    },
+    {
+      "index": 204,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 205,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.58
+    },
+    {
+      "index": 206,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 207,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.65
+    },
+    {
+      "index": 208,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.69
+    },
+    {
+      "index": 209,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.34
+    },
+    {
+      "index": 210,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.15
+    },
+    {
+      "index": 211,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 212,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 213,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.73
+    },
+    {
+      "index": 214,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.46
+    },
+    {
+      "index": 215,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 216,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.44
+    },
+    {
+      "index": 217,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 218,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.66
+    },
+    {
+      "index": 219,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.46
+    },
+    {
+      "index": 220,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 221,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.45
+    },
+    {
+      "index": 222,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.31
+    },
+    {
+      "index": 223,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.49
+    },
+    {
+      "index": 224,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 225,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 226,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 227,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.48
+    },
+    {
+      "index": 228,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.05
+    },
+    {
+      "index": 229,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.3
+    },
+    {
+      "index": 230,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.85
+    },
+    {
+      "index": 231,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 232,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 233,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.34
+    },
+    {
+      "index": 234,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.34
+    },
+    {
+      "index": 235,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 236,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.48
+    },
+    {
+      "index": 237,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 238,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.61
+    },
+    {
+      "index": 239,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.46
+    },
+    {
+      "index": 240,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.5
+    },
+    {
+      "index": 241,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.69
+    },
+    {
+      "index": 242,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 243,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.38
+    },
+    {
+      "index": 244,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.01
+    },
+    {
+      "index": 245,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.34
+    },
+    {
+      "index": 246,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.57
+    },
+    {
+      "index": 247,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.57
+    },
+    {
+      "index": 248,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.38
+    },
+    {
+      "index": 249,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.33
+    },
+    {
+      "index": 250,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 251,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.39
+    },
+    {
+      "index": 252,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 253,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.84
+    },
+    {
+      "index": 254,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.4
+    },
+    {
+      "index": 255,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.84
+    },
+    {
+      "index": 256,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 257,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 258,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.15
+    },
+    {
+      "index": 259,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.65
+    },
+    {
+      "index": 260,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 261,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.66
+    },
+    {
+      "index": 262,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 263,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.42
+    },
+    {
+      "index": 264,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.47
+    },
+    {
+      "index": 265,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 266,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.54
+    },
+    {
+      "index": 267,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 268,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.38
+    },
+    {
+      "index": 269,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.27
+    },
+    {
+      "index": 270,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 271,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.58
+    },
+    {
+      "index": 272,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.04
+    },
+    {
+      "index": 273,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.54
+    },
+    {
+      "index": 274,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.77
+    },
+    {
+      "index": 275,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.43
+    },
+    {
+      "index": 276,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.33
+    },
+    {
+      "index": 277,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.95
+    },
+    {
+      "index": 278,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 279,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.38
+    },
+    {
+      "index": 280,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 281,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.4
+    },
+    {
+      "index": 282,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 283,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 284,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.54
+    },
+    {
+      "index": 285,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 286,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.38
+    },
+    {
+      "index": 287,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.78
+    },
+    {
+      "index": 288,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.33
+    },
+    {
+      "index": 289,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.62
+    },
+    {
+      "index": 290,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 291,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.4
+    },
+    {
+      "index": 292,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 293,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.69
+    },
+    {
+      "index": 294,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.44
+    },
+    {
+      "index": 295,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.68
+    },
+    {
+      "index": 296,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.41
+    },
+    {
+      "index": 297,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.84
+    },
+    {
+      "index": 298,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 299,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.95
+    },
+    {
+      "index": 300,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.51
+    },
+    {
+      "index": 301,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.87
+    },
+    {
+      "index": 302,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.95
+    },
+    {
+      "index": 303,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 304,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 305,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 306,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.62
+    },
+    {
+      "index": 307,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.84
+    },
+    {
+      "index": 308,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.55
+    },
+    {
+      "index": 309,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.09
+    },
+    {
+      "index": 310,
+      "true_label": false,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.98
+    },
+    {
+      "index": 311,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.8
+    },
+    {
+      "index": 312,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.65
+    },
+    {
+      "index": 313,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.54
+    },
+    {
+      "index": 314,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 315,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.57
+    },
+    {
+      "index": 316,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.85
+    },
+    {
+      "index": 317,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.84
+    },
+    {
+      "index": 318,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 319,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.8
+    },
+    {
+      "index": 320,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.37
+    },
+    {
+      "index": 321,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.44
+    },
+    {
+      "index": 322,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 323,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.58
+    },
+    {
+      "index": 324,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 0.34
+    },
+    {
+      "index": 325,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 1.0
+    },
+    {
+      "index": 326,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 327,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.15
+    },
+    {
+      "index": 328,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.65
+    },
+    {
+      "index": 329,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.34
+    },
+    {
+      "index": 330,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.41
+    },
+    {
+      "index": 331,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.58
+    },
+    {
+      "index": 332,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.54
+    },
+    {
+      "index": 333,
+      "true_label": true,
+      "prediction": true,
+      "raw_response": "True",
+      "time_s": 1.01
+    },
+    {
+      "index": 334,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.49
+    },
+    {
+      "index": 335,
+      "true_label": true,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.46
+    },
+    {
+      "index": 336,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.98
+    },
+    {
+      "index": 337,
+      "true_label": false,
+      "prediction": false,
+      "raw_response": "False",
+      "time_s": 0.95
+    }
+  ]
+}

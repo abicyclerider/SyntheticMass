@@ -1,0 +1,13 @@
+torch>=2.2.0
+transformers>=4.49.0
+peft>=0.14.0
+trl>=0.15.0
+datasets>=3.0.0
+accelerate>=1.0.0
+huggingface-hub>=0.27.0
+python-dotenv>=1.0.0
+jupyter>=1.0.0
+ipywidgets>=8.0.0
+scikit-learn>=1.4.0
+openai>=1.0.0
+claude-agent-sdk>=0.1.0

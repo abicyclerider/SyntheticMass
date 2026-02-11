@@ -90,12 +90,17 @@ def merge_and_extract(base_model_id, adapter_repo):
     text_model.eval()
 
     text_params = sum(p.numel() for p in text_model.parameters())
-    print(f"Text-only model params: {text_params:,}")
-    print(f"  (saved ~{sum(p.numel() for p in model.parameters()) - text_params:,} params by removing vision tower)")
+    multimodal_params = sum(p.numel() for p in model.parameters())
 
-    # Free the multimodal model
-    del model
+    # Free the multimodal model before moving text model to GPU
+    del model, lang_state, score_state
     torch.cuda.empty_cache()
+
+    # Move text-only model to GPU
+    text_model = text_model.to("cuda")
+
+    print(f"Text-only model params: {text_params:,}")
+    print(f"  (saved ~{multimodal_params - text_params:,} params by removing vision tower)")
 
     return text_model, tokenizer
 

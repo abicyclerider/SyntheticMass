@@ -15,6 +15,12 @@ optimization:
   max_iterations: 8
   confidence_threshold: 0.5
 
+dataset:
+  mode: "balanced"       # "balanced" (full-pool sampling) or "gray_zone" (legacy)
+  n_match: 100
+  n_nonmatch: 100
+  seed: 42
+
 gray_zone:
   lower_threshold: 4.0
   upper_threshold: 6.0

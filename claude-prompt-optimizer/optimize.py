@@ -10,6 +10,7 @@ Usage:
     python optimize.py [--config config.yaml] [--iterations 8]
 """
 
+import random
 import sys
 import os
 import re
@@ -1214,7 +1215,8 @@ Integer threshold for weighted voting (e.g. 3)
 # Claude interaction
 # ---------------------------------------------------------------------------
 
-async def call_claude(prompt: str, model: str = "claude-opus-4-6") -> str:
+async def call_claude(prompt: str, model: str = "claude-opus-4-6",
+                      system_prompt: str | None = None) -> str:
     """
     Call Claude via the claude-agent-sdk.
 
@@ -1223,6 +1225,13 @@ async def call_claude(prompt: str, model: str = "claude-opus-4-6") -> str:
     """
     from claude_agent_sdk import query, ClaudeAgentOptions
 
+    if system_prompt is None:
+        system_prompt = (
+            "You are a prompt engineering expert. "
+            "Always respond using the exact XML tag format requested in the prompt. "
+            "Do not use any tools. Respond with text only."
+        )
+
     result_parts = []
     async for message in query(
         prompt=prompt,
@@ -1230,11 +1239,7 @@ async def call_claude(prompt: str, model: str = "claude-opus-4-6") -> str:
             model=model,
             max_turns=1,
             allowed_tools=[],
-            system_prompt=(
-                "You are a prompt engineering expert. "
-                "Always respond using the exact XML tag format requested in the prompt. "
-                "Do not use any tools. Respond with text only."
-            ),
+            system_prompt=system_prompt,
         ),
     ):
         # AssistantMessage has .content list of blocks
@@ -1399,16 +1404,231 @@ Each index refers to the training examples (0-indexed). Maximum 2.
 
 
 # ---------------------------------------------------------------------------
+# Claude model evaluation (Bayes error baseline)
+# ---------------------------------------------------------------------------
+
+async def evaluate_prompt_claude(instruction: str, few_shots: list[dict],
+                                  examples: list[dict],
+                                  claude_model: str,
+                                  confidence_threshold: float) -> dict:
+    """
+    Evaluate a prompt against all examples using a Claude model.
+
+    Same interface as evaluate_prompt() but calls Claude via the agent SDK.
+    """
+    system_prompt = (
+        "You are a medical record analyst comparing patient records from "
+        "different hospitals. Respond ONLY with:\n"
+        "is_match: true or false\n"
+        "confidence: 0.XX"
+    )
+
+    results = []
+    tp = fp = tn = fn = parse_failures = 0
+
+    for i, ex in enumerate(examples):
+        prompt = assemble_prompt(instruction, few_shots,
+                                 ex['history_a'], ex['history_b'])
+
+        if i == 0:
+            logger.info(f"  Prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
+
+        try:
+            raw_text = await call_claude(prompt, model=claude_model,
+                                          system_prompt=system_prompt)
+        except Exception as e:
+            logger.error(f"Claude API error on example {i}: {e}")
+            raw_text = ""
+
+        if i < 3:
+            logger.info(f"  Raw response [{i}] (actual={ex['is_match']}): "
+                         f"{raw_text[:150]}")
+
+        is_match, confidence, parse_error = parse_medgemma_response(raw_text)
+
+        if is_match and confidence is not None and confidence < confidence_threshold:
+            is_match = False
+
+        if is_match is None:
+            is_match = False
+            parse_failures += 1
+
+        actual = ex['is_match']
+        if is_match and actual:
+            tp += 1
+        elif is_match and not actual:
+            fp += 1
+        elif not is_match and actual:
+            fn += 1
+        else:
+            tn += 1
+
+        results.append({
+            'index': i,
+            'predicted': is_match,
+            'actual': actual,
+            'confidence': confidence,
+            'parse_error': parse_error,
+            'raw_response': raw_text[:300],
+            'correct': is_match == actual,
+        })
+
+        if (i + 1) % 10 == 0 or (i + 1) == len(examples):
+            logger.info(f"  Evaluated {i + 1}/{len(examples)}")
+
+    total = len(examples)
+    accuracy = (tp + tn) / total if total > 0 else 0
+
+    return {
+        'results': results,
+        'accuracy': accuracy,
+        'tp': tp, 'fp': fp, 'tn': tn, 'fn': fn,
+        'parse_failures': parse_failures,
+        'total': total,
+    }
+
+
+async def run_claude_evaluation(config: dict,
+                                 experiment_name: str | None = None):
+    """
+    Evaluate using a Claude model on the balanced dataset (single-shot).
+
+    Establishes a Bayes error baseline by testing a capable model on the
+    same entity resolution task that MedGemma struggles with.
+    """
+    claude_model = config.get('claude', {}).get('model', 'claude-sonnet-4-5-20250929')
+
+    if experiment_name is None:
+        experiment_name = datetime.now().strftime("claude-eval_%Y%m%d_%H%M%S")
+    output_dir = Path(__file__).parent / "output" / experiment_name
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Update latest symlink
+    latest_link = Path(__file__).parent / "output" / "latest"
+    if latest_link.is_symlink() or latest_link.exists():
+        latest_link.unlink()
+    latest_link.symlink_to(experiment_name)
+
+    logger.info(f"Experiment: {experiment_name} (claude-eval with {claude_model})")
+    logger.info(f"Output dir: {output_dir.resolve()}")
+
+    # Save metadata
+    _save_experiment_metadata(output_dir, config, 0, experiment_name,
+                              strategy='claude-eval')
+
+    # Load training data
+    logger.info("Loading training data...")
+    all_examples = load_training_examples(config)
+
+    if len(all_examples) < 4:
+        logger.error(f"Only {len(all_examples)} examples — need at least 4")
+        return
+
+    split_idx = int(len(all_examples) * 0.75)
+    trainset = all_examples[:split_idx]
+    valset = all_examples[split_idx:]
+    logger.info(f"Train: {len(trainset)}, Val: {len(valset)}")
+
+    # Load baseline prompt
+    baseline_path = Path(__file__).parent / "prompts" / "baseline_v1.txt"
+    instruction = baseline_path.read_text().strip()
+
+    opt_config = config.get('optimization', {})
+    confidence_threshold = opt_config.get('confidence_threshold', 0.5)
+
+    # Evaluate on training set
+    logger.info(f"Evaluating on training set ({len(trainset)} examples) "
+                f"with {claude_model}...")
+    train_start = time.time()
+    train_result = await evaluate_prompt_claude(
+        instruction, [], trainset, claude_model, confidence_threshold,
+    )
+    train_elapsed = time.time() - train_start
+    logger.info(f"  Train accuracy: {train_result['accuracy']:.3f} "
+                f"({train_elapsed:.0f}s)")
+
+    # Evaluate on validation set
+    logger.info(f"Evaluating on validation set ({len(valset)} examples) "
+                f"with {claude_model}...")
+    val_start = time.time()
+    val_result = await evaluate_prompt_claude(
+        instruction, [], valset, claude_model, confidence_threshold,
+    )
+    val_elapsed = time.time() - val_start
+    logger.info(f"  Val accuracy: {val_result['accuracy']:.3f} "
+                f"({val_elapsed:.0f}s)")
+
+    # Save results
+    comparison = {
+        'timestamp': datetime.now().isoformat(),
+        'strategy': 'claude-eval',
+        'claude_model': claude_model,
+        'train': {
+            'accuracy': train_result['accuracy'],
+            'tp': train_result['tp'],
+            'fp': train_result['fp'],
+            'tn': train_result['tn'],
+            'fn': train_result['fn'],
+            'parse_failures': train_result['parse_failures'],
+            'elapsed_seconds': round(train_elapsed, 1),
+        },
+        'val': {
+            'accuracy': val_result['accuracy'],
+            'tp': val_result['tp'],
+            'fp': val_result['fp'],
+            'tn': val_result['tn'],
+            'fn': val_result['fn'],
+            'parse_failures': val_result['parse_failures'],
+            'elapsed_seconds': round(val_elapsed, 1),
+        },
+    }
+    with open(output_dir / "comparison.json", "w") as f:
+        json.dump(comparison, f, indent=2)
+
+    # Save per-example details
+    details = {
+        'train': train_result['results'],
+        'val': val_result['results'],
+    }
+    with open(output_dir / "eval_details.json", "w") as f:
+        json.dump(details, f, indent=2, default=str)
+
+    # Print results
+    print("\n" + "=" * 70)
+    print(f"CLAUDE EVALUATION COMPLETE ({claude_model})")
+    print("=" * 70)
+    print(f"\n{'Split':<10} {'Acc':>7} {'TP':>4} {'FP':>4} {'TN':>4} {'FN':>4} "
+          f"{'Parse':>5} {'Time':>8}")
+    print("-" * 55)
+    print(f"{'Train':<10} {train_result['accuracy']:>7.3f} "
+          f"{train_result['tp']:>4} {train_result['fp']:>4} "
+          f"{train_result['tn']:>4} {train_result['fn']:>4} "
+          f"{train_result['parse_failures']:>5} {train_elapsed:>7.0f}s")
+    print(f"{'Val':<10} {val_result['accuracy']:>7.3f} "
+          f"{val_result['tp']:>4} {val_result['fp']:>4} "
+          f"{val_result['tn']:>4} {val_result['fn']:>4} "
+          f"{val_result['parse_failures']:>5} {val_elapsed:>7.0f}s")
+    print("=" * 70)
+    print(f"\nOutputs saved to: {output_dir.resolve()}")
+
+
+# ---------------------------------------------------------------------------
 # Training data loading (reuses llm-entity-resolution infrastructure)
 # ---------------------------------------------------------------------------
 
 def load_training_examples(config: dict) -> list[dict]:
     """
-    Load gray zone pairs with ground truth labels as plain dicts.
+    Load training examples as plain dicts.
 
-    Mirrors build_training_data() from llm-entity-resolution/src/optimize.py
-    but returns plain dicts instead of dspy.Example objects.
+    Dispatches based on config['dataset']['mode']:
+    - "balanced": sample from full pool of cross-facility pairs
+    - "gray_zone" (or unset): legacy gray-zone filter
     """
+    mode = config.get('dataset', {}).get('mode', 'gray_zone')
+    if mode == 'balanced':
+        return load_training_examples_balanced(config)
+
+    # Legacy gray-zone mode
     run_dir = get_run_directory(config['base_dir'], config['run_id'])
 
     # Load patient data
@@ -1488,6 +1708,141 @@ def load_training_examples(config: dict) -> list[dict]:
     return examples
 
 
+def load_training_examples_balanced(config: dict) -> list[dict]:
+    """
+    Load balanced training examples by sampling from the full pool of
+    cross-facility match and non-match pairs.
+
+    Instead of the gray-zone filter (which yields ~60 pairs), this function
+    enumerates all cross-facility true match pairs from ground truth (~1,121)
+    and samples random cross-facility non-match pairs, producing a balanced
+    dataset of configurable size.
+
+    Config keys (under 'dataset'):
+        n_match: number of match pairs to sample (default 100)
+        n_nonmatch: number of non-match pairs to sample (default 100)
+        seed: random seed for reproducibility (default 42)
+    """
+    dataset_config = config.get('dataset', {})
+    n_match = dataset_config.get('n_match', 100)
+    n_nonmatch = dataset_config.get('n_nonmatch', 100)
+    seed = dataset_config.get('seed', 42)
+    rng = random.Random(seed)
+
+    run_dir = get_run_directory(config['base_dir'], config['run_id'])
+
+    # Load patient data
+    patients_df = load_facility_patients(str(run_dir))
+    patients_df['record_id'] = (
+        patients_df['facility_id'] + '_' + patients_df['Id'].astype(str)
+    )
+
+    # Load ground truth
+    ground_truth_df = load_ground_truth(str(run_dir))
+    ground_truth_df = add_record_ids_to_ground_truth(ground_truth_df, patients_df)
+
+    # Build record_id → (patient_uuid, facility_id) mapping
+    record_map = {}
+    for _, row in patients_df.iterrows():
+        record_map[row['record_id']] = (row['Id'], row['facility_id'])
+
+    # Enumerate ALL cross-facility true match pairs from ground truth
+    all_match_pairs = []
+    true_pairs = set()
+    for _, group in ground_truth_df.groupby('true_patient_id'):
+        rids = group['record_id'].dropna().tolist()
+        for i in range(len(rids)):
+            for j in range(i + 1, len(rids)):
+                rid_i, rid_j = rids[i], rids[j]
+                # Only cross-facility pairs
+                if rid_i not in record_map or rid_j not in record_map:
+                    continue
+                _, fac_i = record_map[rid_i]
+                _, fac_j = record_map[rid_j]
+                if fac_i == fac_j:
+                    continue
+                pair = tuple(sorted([rid_i, rid_j]))
+                if pair not in true_pairs:
+                    true_pairs.add(pair)
+                    all_match_pairs.append(pair)
+
+    logger.info(f"Found {len(all_match_pairs)} cross-facility true match pairs")
+
+    # Sample match pairs
+    if n_match > len(all_match_pairs):
+        logger.warning(f"Requested {n_match} match pairs but only "
+                       f"{len(all_match_pairs)} available — using all")
+        sampled_matches = list(all_match_pairs)
+    else:
+        sampled_matches = rng.sample(all_match_pairs, n_match)
+
+    # Build list of all record_ids grouped by facility for non-match sampling
+    facility_records = {}
+    for rid, (uuid, fac) in record_map.items():
+        facility_records.setdefault(fac, []).append(rid)
+    facilities = sorted(facility_records.keys())
+
+    # Sample cross-facility non-match pairs
+    sampled_nonmatches = []
+    attempts = 0
+    max_attempts = n_nonmatch * 20
+    seen_nonmatch = set()
+    while len(sampled_nonmatches) < n_nonmatch and attempts < max_attempts:
+        attempts += 1
+        # Pick two different facilities
+        fac_a, fac_b = rng.sample(facilities, 2)
+        rid_a = rng.choice(facility_records[fac_a])
+        rid_b = rng.choice(facility_records[fac_b])
+        pair = tuple(sorted([rid_a, rid_b]))
+        if pair in true_pairs or pair in seen_nonmatch:
+            continue
+        seen_nonmatch.add(pair)
+        sampled_nonmatches.append(pair)
+
+    logger.info(f"Sampled {len(sampled_nonmatches)} cross-facility non-match pairs "
+                f"({attempts} attempts)")
+
+    # Load medical records and build examples
+    logger.info("Loading medical records...")
+    medical_records = load_medical_records(str(run_dir))
+
+    examples = []
+    for rid1, rid2 in sampled_matches:
+        uuid1, fac1 = record_map[rid1]
+        uuid2, fac2 = record_map[rid2]
+        summary_a = summarize_patient_records(uuid1, fac1, medical_records)
+        summary_b = summarize_patient_records(uuid2, fac2, medical_records)
+        examples.append({
+            'history_a': summary_a,
+            'history_b': summary_b,
+            'is_match': True,
+            'record_id_1': rid1,
+            'record_id_2': rid2,
+        })
+
+    for rid1, rid2 in sampled_nonmatches:
+        uuid1, fac1 = record_map[rid1]
+        uuid2, fac2 = record_map[rid2]
+        summary_a = summarize_patient_records(uuid1, fac1, medical_records)
+        summary_b = summarize_patient_records(uuid2, fac2, medical_records)
+        examples.append({
+            'history_a': summary_a,
+            'history_b': summary_b,
+            'is_match': False,
+            'record_id_1': rid1,
+            'record_id_2': rid2,
+        })
+
+    # Shuffle with same seed for reproducibility
+    rng.shuffle(examples)
+
+    matches = sum(1 for e in examples if e['is_match'])
+    logger.info(f"Built {len(examples)} balanced examples "
+                f"({matches} matches, {len(examples) - matches} non-matches)")
+
+    return examples
+
+
 # ---------------------------------------------------------------------------
 # Main optimization loop
 # ---------------------------------------------------------------------------
@@ -1555,7 +1910,20 @@ def list_experiments():
 
         strategy = meta.get("strategy", comp.get("strategy", "single-shot"))
 
-        if strategy == 'decompose':
+        if strategy == 'claude-eval':
+            claude_model = comp.get("claude_model", meta.get("claude", {}).get("model", "?"))
+            experiments.append({
+                "name": d.name,
+                "strategy": "claude-eval",
+                "timestamp": meta.get("timestamp", comp.get("timestamp", "?")),
+                "model": claude_model,
+                "iters": "-",
+                "best_iter": "-",
+                "best_train": comp.get("train", {}).get("accuracy", 0),
+                "best_val": comp.get("val", {}).get("accuracy", 0),
+                "git": meta.get("git_hash", "?"),
+            })
+        elif strategy == 'decompose':
             # Decompose format: train/val at top level
             experiments.append({
                 "name": d.name,
@@ -1817,13 +2185,15 @@ def main():
                         help='Number of optimization iterations')
     parser.add_argument('--name', type=str, default=None,
                         help='Experiment name (default: auto-generated timestamp)')
-    parser.add_argument('--strategy', choices=['single-shot', 'decompose'],
+    parser.add_argument('--strategy', choices=['single-shot', 'decompose', 'claude-eval'],
                         default='single-shot',
                         help='Evaluation strategy (default: single-shot)')
     parser.add_argument('--threshold', type=int, default=None,
                         help='Voting threshold for decompose strategy (default: 3)')
     parser.add_argument('--from', dest='from_experiment', type=str, default=None,
                         help='Warm-start from a previous experiment (e.g. decompose-opt-v1)')
+    parser.add_argument('--claude-model', type=str, default=None,
+                        help='Claude model for claude-eval strategy (default: from config)')
     parser.add_argument('--list', action='store_true',
                         help='List all past experiments and exit')
     args = parser.parse_args()
@@ -1847,7 +2217,11 @@ def main():
             parser.error(f"--from: {candidate} does not exist")
         initial_prompts_path = candidate
 
-    if args.strategy == 'decompose':
+    if args.strategy == 'claude-eval':
+        if args.claude_model:
+            config.setdefault('claude', {})['model'] = args.claude_model
+        anyio.run(run_claude_evaluation, config, args.name)
+    elif args.strategy == 'decompose':
         if args.iterations and args.iterations > 0:
             # Decompose optimization loop
             anyio.run(run_decompose_optimization, config, args.iterations,

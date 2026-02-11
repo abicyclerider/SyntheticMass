@@ -1,10 +1,28 @@
 {
-  "disabledMcpjsonServers": [
-    "odin-project-react"
-  ],
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(~/bin/runpodctl ssh connect:*)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:learnopencv.com)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)",
+      "Bash(~/bin/runpodctl get:*)",
+      "Bash(ls -la /Users/alex/repos/Kaggle/SyntheticMass/fine-tuning-101/*.py)",
+      "Bash(~/bin/runpodctl ssh list-keys:*)",
+      "Bash(~/bin/runpodctl:*)",
+      "Bash(du:*)",
+      "Bash(grep:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "odin-project-react"
+  ],
+  "disabledMcpjsonServers": [
+    "odin-project-react"
+  ]
 }

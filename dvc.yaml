@@ -1,0 +1,43 @@
+vars:
+  - params.yaml
+
+stages:
+  generate:
+    cmd: >-
+      SYNTHEA_POPULATION=${generate.population}
+      SYNTHEA_SEED=${generate.seed}
+      docker compose -f synthea-runner/docker-compose.yml
+      --project-directory synthea-runner
+      up --exit-code-from synthea
+    params:
+      - generate.population
+      - generate.seed
+    deps:
+      - synthea-runner/docker-compose.yml
+      - synthea-runner/synthea-docker/Dockerfile
+    outs:
+      - synthea-runner/output/synthea_raw/csv:
+          cache: false
+
+  augment:
+    cmd: >-
+      rm -rf output/augmented &&
+      docker build -t augmentation augmentation/ &&
+      docker run --rm
+      -v $(pwd)/synthea-runner/output/synthea_raw/csv:/data/input:ro
+      -v $(pwd)/output/augmented:/data/output
+      augmentation
+      --input /data/input
+      --output /data/output
+      --random-seed ${augment.random_seed}
+    params:
+      - augment.random_seed
+    deps:
+      - synthea-runner/output/synthea_raw/csv
+      - augmentation/Dockerfile
+      - augmentation/requirements-runtime.txt
+      - augmentation/cli/augment.py
+      - augmentation/config/default_config.yaml
+    outs:
+      - output/augmented:
+          cache: false

@@ -1,0 +1,93 @@
+stages:
+  generate:
+    cmd: >-
+      docker compose -f synthea-runner/docker-compose.yml
+      --project-directory synthea-runner
+      up --exit-code-from synthea
+    deps:
+      - synthea-runner/docker-compose.yml
+      - synthea-runner/synthea-docker/Dockerfile
+    outs:
+      - synthea-runner/output/synthea_raw/csv/patients.csv
+      - synthea-runner/output/synthea_raw/csv/encounters.csv
+      - synthea-runner/output/synthea_raw/csv/conditions.csv
+      - synthea-runner/output/synthea_raw/csv/medications.csv
+      - synthea-runner/output/synthea_raw/csv/observations.csv
+      - synthea-runner/output/synthea_raw/csv/procedures.csv
+      - synthea-runner/output/synthea_raw/csv/allergies.csv
+      - synthea-runner/output/synthea_raw/csv/immunizations.csv
+      - synthea-runner/output/synthea_raw/csv/organizations.csv
+
+  augment:
+    cmd: >-
+      python -m augmentation.cli.augment
+      --input synthea-runner/output/synthea_raw/csv
+      --output data/augmented
+      --config augmentation/config/default_config.yaml
+    deps:
+      - augmentation/cli/augment.py
+      - augmentation/core/
+      - augmentation/errors/
+      - augmentation/generators/
+      - augmentation/config/default_config.yaml
+      - synthea-runner/output/synthea_raw/csv/patients.csv
+    outs:
+      - data/augmented/facilities/
+      - data/augmented/metadata/ground_truth.csv
+      - data/augmented/metadata/error_log.jsonl
+    metrics:
+      - data/augmented/statistics/augmentation_report.json:
+          cache: false
+
+  resolve_match:
+    cmd: >-
+      python entity-resolution/run_pipeline.py
+      --config entity-resolution/config/matching_config.yaml
+      --output-dir data/entity-resolution/
+      --verbose
+    deps:
+      - entity-resolution/run_pipeline.py
+      - entity-resolution/src/
+      - entity-resolution/config/matching_config.yaml
+      - shared/data_loader.py
+      - shared/ground_truth.py
+      - data/augmented/facilities/
+      - data/augmented/metadata/ground_truth.csv
+    outs:
+      - data/entity-resolution/golden_records.csv
+      - data/entity-resolution/predicted_matches.csv
+    metrics:
+      - data/entity-resolution/evaluation_metrics.json:
+          cache: false
+
+  # --- Training pipeline (frozen — requires GPU, runs on RunPod) ---
+
+  train_prepare:
+    frozen: true
+    cmd: >-
+      python fine-tuning/prepare_dataset.py
+      --run-dir data/augmented
+      --no-push
+    deps:
+      - fine-tuning/prepare_dataset.py
+      - shared/data_loader.py
+      - shared/ground_truth.py
+      - shared/medical_records.py
+      - shared/summarize.py
+      - data/augmented/facilities/
+      - data/augmented/metadata/ground_truth.csv
+
+  train_model:
+    frozen: true
+    cmd: >-
+      python fine-tuning/train_classifier_on_gpu.py
+      --epochs 6 --batch-size 4 --grad-accum 4 --max-length 2048
+    deps:
+      - fine-tuning/train_classifier_on_gpu.py
+
+  train_export:
+    frozen: true
+    cmd: >-
+      python fine-tuning/export_text_only_model.py --validate
+    deps:
+      - fine-tuning/export_text_only_model.py

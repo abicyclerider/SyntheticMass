@@ -19,7 +19,6 @@ if _project_root not in sys.path:
 from shared.data_loader import (  # noqa: E402
     load_facility_patients,
     standardize_columns,
-    get_run_directory,
 )
 from shared.ground_truth import load_ground_truth  # noqa: E402
 
@@ -51,12 +50,14 @@ def load_data_for_matching(config: dict) -> Tuple[pd.DataFrame, pd.DataFrame]:
     Load all necessary data for entity resolution from configuration.
 
     Args:
-        config: Configuration dictionary with base_dir and run_id
+        config: Configuration dictionary with run_dir path
 
     Returns:
         Tuple of (patient_records_df, ground_truth_df)
     """
-    run_dir = get_run_directory(config['base_dir'], config['run_id'])
+    run_dir = Path(config['run_dir'])
+    if not run_dir.exists():
+        raise FileNotFoundError(f"Run directory not found: {run_dir}")
 
     patients_df = load_facility_patients(str(run_dir))
     patients_df = create_record_id(patients_df)

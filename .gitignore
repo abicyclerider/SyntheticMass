@@ -215,6 +215,9 @@ output/
 output/**/*.csv
 output/**/*.json
 
+# DVC pipeline outputs (regenerated via `dvc repro`)
+/data/
+
 # macOS system files
 .DS_Store
 

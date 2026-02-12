@@ -40,7 +40,6 @@ from shared.summarize import INSTRUCTION, summarize_diff_friendly_from_records
 
 MODEL_ID = "google/gemma-3-1b-it"
 DATASET_REPO = "abicyclerider/entity-resolution-pairs"
-RUN_DIR = os.path.join(PROJECT_ROOT, "output", "augmented", "run_20260211_063607")
 
 
 def format_pair(summary_a, summary_b, label):
@@ -56,12 +55,16 @@ def format_pair(summary_a, summary_b, label):
 
 def main():
     parser = argparse.ArgumentParser(description="Prepare entity resolution dataset for HF Hub")
+    parser.add_argument("--run-dir", type=str, required=True,
+                        help="Path to augmentation run directory")
     parser.add_argument("--max-length", type=int, default=0,
                         help="Filter pairs exceeding this token length (0 = no filter)")
     parser.add_argument("--no-push", action="store_true",
                         help="Build dataset locally without pushing to Hub")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
+
+    run_dir = args.run_dir
 
     # HF login
     if not args.no_push:
@@ -77,11 +80,11 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
 
     # Load data
-    print(f"Loading data from {RUN_DIR}...")
-    patients_df = load_facility_patients(RUN_DIR)
+    print(f"Loading data from {run_dir}...")
+    patients_df = load_facility_patients(run_dir)
     patients_df["record_id"] = patients_df["facility_id"] + "_" + patients_df["id"].astype(str)
 
-    ground_truth_df = load_ground_truth(RUN_DIR)
+    ground_truth_df = load_ground_truth(run_dir)
     ground_truth_df = add_record_ids_to_ground_truth(ground_truth_df, patients_df)
 
     true_pairs = generate_true_pairs_from_ground_truth(ground_truth_df)
@@ -114,7 +117,7 @@ def main():
 
     # Load medical records and build summaries
     print("\nLoading medical records...")
-    medical_records = load_medical_records(RUN_DIR)
+    medical_records = load_medical_records(run_dir)
 
     # Pre-index medical records by (PATIENT, facility_id) for O(1) lookups
     print("Indexing medical records...")

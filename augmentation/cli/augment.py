@@ -3,7 +3,6 @@
 import click
 from pathlib import Path
 import yaml
-from datetime import datetime
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.panel import Panel
@@ -106,15 +105,11 @@ def main(
         console.print("\n[yellow]Dry run mode - no output will be written[/yellow]")
         return
 
-    # Create timestamped output directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_output_dir = output_dir / f"run_{timestamp}"
-
-    console.print(f"\n[green]Output directory:[/green] {run_output_dir}")
+    console.print(f"\n[green]Output directory:[/green] {output_dir}")
 
     # Run augmentation pipeline
     try:
-        run_augmentation_pipeline(config, run_output_dir, validate)
+        run_augmentation_pipeline(config, output_dir, validate)
         console.print("\n[bold green]✓ Augmentation completed successfully![/bold green]")
     except Exception as e:
         console.print(f"\n[bold red]✗ Error during augmentation:[/bold red] {e}")

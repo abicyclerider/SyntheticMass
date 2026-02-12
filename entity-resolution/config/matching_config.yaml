@@ -1,6 +1,5 @@
 # Entity Resolution Configuration
-run_id: "run_20260203_071928"  # Using run with stripped names (no Synthea numbers)
-base_dir: "/Users/alex/repos/Kaggle/SyntheticMass"
+run_dir: "data/augmented"
 
 # Blocking strategy
 blocking:

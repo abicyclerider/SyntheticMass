@@ -120,22 +120,3 @@ def standardize_columns(df: pd.DataFrame) -> pd.DataFrame:
     logger.debug(f"Prepared {len(df)} records for matching")
 
     return df
-
-
-def get_run_directory(base_dir: str, run_id: str) -> Path:
-    """
-    Get the full path to a run directory.
-
-    Args:
-        base_dir: Base directory of the project
-        run_id: Run identifier (e.g., run_20260202_122731)
-
-    Returns:
-        Path to run directory
-    """
-    run_dir = Path(base_dir) / "output" / "augmented" / run_id
-
-    if not run_dir.exists():
-        raise FileNotFoundError(f"Run directory not found: {run_dir}")
-
-    return run_dir

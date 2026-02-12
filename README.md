@@ -1,99 +1,57 @@
 # SyntheticMass
 
-Medical data generation and augmentation pipeline for entity resolution training.
+Entity resolution pipeline for synthetic medical records, built for the [Kaggle MedGemma Impact Challenge](https://www.kaggle.com/competitions/medgemma-impact-challenge).
 
 ## Overview
 
-This repository contains tools for generating and augmenting synthetic medical datasets. The goal is to create realistic patient data with controlled variations and errors for training and evaluating entity resolution algorithms.
+Generate synthetic patient data, augment it with realistic errors and duplicates, then resolve matching records using rule-based blocking and a fine-tuned MedGemma classifier. The fine-tuned model achieves **F1 = 0.963** on held-out test pairs.
 
 ## Project Structure
 
 ```
 SyntheticMass/
-├── synthea-runner/          # Synthea patient data generation
-│   ├── docker-compose.yml   # Docker Compose configuration
-│   ├── config/              # Synthea configuration
-│   ├── synthea-docker/      # Synthea Docker submodule
-│   ├── output/              # Generated synthetic patients (gitignored)
-│   └── README.md            # Synthea runner documentation
-│
-├── (future) augmentation/   # Data augmentation pipeline
-│   └── ...                  # Error injection, duplicates, ground truth
-│
-├── LICENSE                  # Project license
-└── README.md                # This file
+├── synthea-runner/       # Synthea patient data generation (Docker)
+├── augmentation/         # Error injection, duplicates, ground truth labels
+├── entity-resolution/    # Blocking, candidate pair generation, classification
+├── fine-tuning/          # MedGemma 4B QLoRA training & evaluation
+├── shared/               # Shared utilities (summarizer, etc.)
+├── analysis/             # Exploratory notebooks
+└── README.md
 ```
 
-## Components
+## Workflow
 
-### 1. Synthea Runner (`synthea-runner/`)
+1. **Generate** — `synthea-runner/` creates 10K synthetic patients via [Synthea](https://github.com/synthetichealth/synthea)
+2. **Augment** — `augmentation/` injects typos, formatting changes, missing fields, and duplicates with ground-truth labels
+3. **Block & Pair** — `entity-resolution/` applies rule-based blocking to reduce the candidate space, then generates record pairs
+4. **Classify** — Fine-tuned MedGemma 4B text-only classifier scores each pair as match/non-match
 
-Generates base synthetic patient records using [Synthea](https://github.com/synthetichealth/synthea).
+## Key Results
 
-**Features:**
-- Generates realistic medical records (demographics, encounters, conditions, medications, etc.)
-- Configurable population size, demographics, and clinical modules
-- CSV export format
-- Reproducible output with fixed random seeds
+| Model | Params | F1 | Accuracy | Precision | Recall |
+|-------|--------|----|----------|-----------|--------|
+| MedGemma 4B text-only (QLoRA, merged) | 3.88B | 0.963 | 0.963 | 0.969 | 0.958 |
 
-**Quick Start:**
-```bash
-# Initialize submodules
-git submodule update --init --recursive
-
-# Generate patients
-cd synthea-runner
-docker compose up
-```
-
-See [`synthea-runner/README.md`](synthea-runner/README.md) for full documentation.
-
-### 2. Data Augmentation (Coming Soon)
-
-Future component for augmenting Synthea data with:
-- Controlled errors and variations (typos, formatting differences, missing fields)
-- Duplicate record generation
-- Ground truth tracking for entity resolution training
-- Configurable error rates based on healthcare research
+Model on HuggingFace: [`abicyclerider/medgemma-4b-entity-resolution-text-only`](https://huggingface.co/abicyclerider/medgemma-4b-entity-resolution-text-only)
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Docker**: For running Synthea
-- **Git**: For cloning repository and submodules
-- **4GB+ RAM**: Required for Synthea generation
+- **Docker** — for Synthea data generation
+- **Python 3.11+** — for augmentation, entity resolution, and analysis
+- **GPU (48GB+ VRAM)** — for fine-tuning (H100 or L40S recommended)
 
-### Initial Setup
+### Generate Base Data
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/SyntheticMass.git
-cd SyntheticMass
-
-# Initialize submodules
 git submodule update --init --recursive
-
-# Generate base patient data
 cd synthea-runner
 docker compose up
 ```
 
-## Workflow
-
-1. **Generate Base Data** - Use synthea-runner to create synthetic patients
-2. **Augment Data** (future) - Add controlled errors and duplicates
-3. **Train Models** (external) - Use augmented data for entity resolution
+See [`synthea-runner/README.md`](synthea-runner/README.md) for configuration details.
 
 ## License
 
 See `LICENSE` file for details.
-
-## Documentation
-
-- [Synthea Runner Documentation](synthea-runner/README.md)
-- [Synthea Official Wiki](https://github.com/synthetichealth/synthea/wiki)
-
----
-
-**Current Status**: Base patient generation operational via synthea-runner

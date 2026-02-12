@@ -307,7 +307,7 @@ Note: since `--env` flags are unreliable on RunPod (known issue), the training s
 ### 7. Proposed Directory Structure
 
 ```
-fine-tuning-101/
+fine-tuning/
 ├── Dockerfile                          # Reproducible training environment
 ├── .dockerignore                       # Exclude output/, .venv/, notebooks
 ├── docker-compose.yml                  # Optional: local MLflow server

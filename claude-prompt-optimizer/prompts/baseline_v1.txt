@@ -1,7 +1,0 @@
-Given medical histories from two patients at different facilities, determine if they are the same person based solely on clinical patterns.
-
-Focus on chronic condition overlap, medication continuity, encounter timing, and distinctive clinical features. Ignore any demographic information.
-
-Respond with:
-- is_match: true or false
-- confidence: a decimal number between 0.0 and 1.0

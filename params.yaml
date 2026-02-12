@@ -1,0 +1,6 @@
+generate:
+  population: 500
+  seed: 12345
+
+augment:
+  random_seed: 42

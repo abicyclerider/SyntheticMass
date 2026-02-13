@@ -45,24 +45,27 @@ Inference requires a CUDA GPU. Uses 4-bit NF4 quantization by default (`--no-qua
 
 ## Docker
 
-Each pipeline stage has a dedicated Docker image:
+A single multi-target Dockerfile covers all pipeline stages. Build a specific stage with `--target`:
 
 ```bash
 # Prepare base model (CPU — one-time)
-docker build -f Dockerfile.prepare -t medgemma-prepare .
+docker build --target prepare -t medgemma-prepare .
 docker run -e HF_TOKEN=hf_... medgemma-prepare
 
 # Train (GPU)
-docker build -f Dockerfile.train -t medgemma-train .
+docker build --target train -t medgemma-train .
 docker run --gpus all -e HF_TOKEN=hf_... medgemma-train --epochs 3
 
 # Export (GPU)
-docker build -f Dockerfile.export -t medgemma-export .
+docker build --target export -t medgemma-export .
 docker run --gpus all -e HF_TOKEN=hf_... medgemma-export --validate
 
 # Infer (GPU)
-docker build -f Dockerfile.infer -t medgemma-infer .
+docker build --target infer -t medgemma-infer .
 docker run --gpus all -e HF_TOKEN=hf_... medgemma-infer --dataset
+
+# Interactive (RunPod SSH — all scripts, sleep infinity)
+docker build --target interactive -t medgemma-interactive .
 ```
 
 ## Local Setup (without Docker)

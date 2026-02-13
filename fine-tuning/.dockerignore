@@ -1,0 +1,10 @@
+.env
+.env.*
+*.csv
+__pycache__
+*.pyc
+.git
+*.md
+output/
+.claude/
+.venv/

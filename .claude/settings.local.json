@@ -15,7 +15,21 @@
       "Bash(~/bin/runpodctl ssh list-keys:*)",
       "Bash(~/bin/runpodctl:*)",
       "Bash(du:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(git -C /Users/alex/repos/Kaggle/SyntheticMass log --oneline -20)",
+      "Bash(git -C /Users/alex/repos/Kaggle/SyntheticMass show --name-status 5d49433)",
+      "Bash(git -C /Users/alex/repos/Kaggle/SyntheticMass ls-files:*)",
+      "Bash(git -C /Users/alex/repos/Kaggle/SyntheticMass show:*)",
+      "Bash(git -C /Users/alex/repos/Kaggle/SyntheticMass log --oneline)",
+      "Bash(wc:*)",
+      "WebFetch(domain:docs.docker.com)",
+      "WebFetch(domain:hub.docker.com)",
+      "WebFetch(domain:mveg.es)",
+      "WebFetch(domain:www.divio.com)",
+      "WebFetch(domain:earthly.dev)",
+      "WebFetch(domain:pythonspeed.com)",
+      "WebFetch(domain:docs.runpod.io)"
     ]
   },
   "enableAllProjectMcpServers": true,

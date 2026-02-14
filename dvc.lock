@@ -113,17 +113,23 @@ stages:
       $(pwd)/output/augmented:/data/augmented:ro -v 
       $(pwd)/output/resolved:/data/resolved:ro -v 
       $(pwd)/output/inferred:/data/inferred:ro -v 
+      $(pwd)/entity-resolution/models:/data/models:ro -v 
       $(pwd)/output/golden_records:/data/golden_records entity-resolution python
       entity-resolution/build_golden_records.py --augmented-dir /data/augmented 
       --auto-matches /data/resolved/auto_matches.csv --predictions 
       /data/inferred/predictions.csv --features /data/resolved/features.csv 
-      --output-dir /data/golden_records --config 
+      --scorer-model /data/models/scorer_model.joblib --output-dir 
+      /data/golden_records --config 
       entity-resolution/config/matching_config.yaml
     deps:
     - path: entity-resolution/build_golden_records.py
       hash: md5
-      md5: 10cffa432f71e1c5e7d16c9b0e9674ba
-      size: 10341
+      md5: cbead961387f938f2de2c069ffa638d1
+      size: 11466
+    - path: entity-resolution/models/scorer_model.joblib
+      hash: md5
+      md5: bf9ff95e375376f5859dc24e01772b3b
+      size: 1817
     - path: entity-resolution/src/
       hash: md5
       md5: ac01e60838228d102b6b62db67e9be60.dir
@@ -154,8 +160,8 @@ stages:
     outs:
     - path: output/golden_records
       hash: md5
-      md5: 31ff3270026a615fffa06048792bf247.dir
-      size: 299516
+      md5: 27f2b558bbca880f2b3ef0ff6b59068d.dir
+      size: 295469
       nfiles: 3
   infer:
     cmd: rm -rf output/inferred && mkdir -p output/inferred && 
@@ -193,3 +199,50 @@ stages:
       hash: md5
       md5: e54ab911add8ef1edf55ec7f5cf12402
       size: 6566366
+  train_scorer:
+    cmd: rm -rf output/scorer && docker run --rm -v 
+      $(pwd)/output/augmented:/data/augmented:ro -v 
+      $(pwd)/output/resolved:/data/resolved:ro -v 
+      $(pwd)/output/inferred:/data/inferred:ro -v 
+      $(pwd)/output/scorer:/data/scorer entity-resolution python 
+      entity-resolution/train_scorer.py --augmented-dir /data/augmented 
+      --features /data/resolved/features.csv --predictions 
+      /data/inferred/predictions.csv --output-dir /data/scorer
+    deps:
+    - path: entity-resolution/Dockerfile
+      hash: md5
+      md5: aa2df09e7babc2dd685536ad3ac410c4
+      size: 270
+    - path: entity-resolution/src/
+      hash: md5
+      md5: ac01e60838228d102b6b62db67e9be60.dir
+      size: 89748
+      nfiles: 13
+    - path: entity-resolution/train_scorer.py
+      hash: md5
+      md5: 51b1464ba837f10602576d0167c80370
+      size: 8326
+    - path: output/augmented
+      hash: md5
+      md5: 4549fb5837ad07fe383e8bcb4948abd6.dir
+      size: 533496994
+      nfiles: 95
+    - path: output/inferred/predictions.csv
+      hash: md5
+      md5: e54ab911add8ef1edf55ec7f5cf12402
+      size: 6566366
+    - path: output/resolved/features.csv
+      hash: md5
+      md5: f00eb320148f532263fc455c795a8a63
+      size: 4802770
+    - path: shared/
+      hash: md5
+      md5: dee2997ebbb4933304e9afa4bf0b7ce7.dir
+      size: 30371
+      nfiles: 10
+    outs:
+    - path: output/scorer
+      hash: md5
+      md5: ca86d9b96ae24ae89cb79ee5de47d04c.dir
+      size: 3488
+      nfiles: 2

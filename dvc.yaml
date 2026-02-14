@@ -90,31 +90,6 @@ stages:
     - output/inferred/predictions.csv:
         cache: false
 
-  train_scorer:
-    cmd: >-
-      rm -rf output/scorer &&
-      docker run --rm
-      -v $(pwd)/output/augmented:/data/augmented:ro
-      -v $(pwd)/output/resolved:/data/resolved:ro
-      -v $(pwd)/output/inferred:/data/inferred:ro
-      -v $(pwd)/output/scorer:/data/scorer
-      entity-resolution
-      python entity-resolution/train_scorer.py
-      --augmented-dir /data/augmented
-      --features /data/resolved/features.csv
-      --predictions /data/inferred/predictions.csv
-      --output-dir /data/scorer
-    deps:
-    - output/augmented
-    - output/resolved/features.csv
-    - output/inferred/predictions.csv
-    - entity-resolution/Dockerfile
-    - entity-resolution/train_scorer.py
-    - entity-resolution/src/
-    - shared/
-    outs:
-    - output/scorer:
-        cache: false
   golden_records:
     cmd: >-
       rm -rf output/golden_records &&
@@ -122,7 +97,7 @@ stages:
       -v $(pwd)/output/augmented:/data/augmented:ro
       -v $(pwd)/output/resolved:/data/resolved:ro
       -v $(pwd)/output/inferred:/data/inferred:ro
-      -v $(pwd)/output/scorer:/data/scorer:ro
+      -v $(pwd)/entity-resolution/models:/data/models:ro
       -v $(pwd)/output/golden_records:/data/golden_records
       entity-resolution
       python entity-resolution/build_golden_records.py
@@ -130,15 +105,15 @@ stages:
       --auto-matches /data/resolved/auto_matches.csv
       --predictions /data/inferred/predictions.csv
       --features /data/resolved/features.csv
-      --scorer-model /data/scorer/scorer_model.joblib
+      --scorer-model /data/models/scorer_model.joblib
       --output-dir /data/golden_records
       --config entity-resolution/config/matching_config.yaml
     deps:
     - output/resolved/auto_matches.csv
     - output/resolved/features.csv
     - output/inferred/predictions.csv
-    - output/scorer/scorer_model.joblib
     - output/augmented
+    - entity-resolution/models/scorer_model.joblib
     - entity-resolution/build_golden_records.py
     - entity-resolution/src/
     - shared/

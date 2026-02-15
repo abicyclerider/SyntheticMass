@@ -50,6 +50,15 @@ Inference requires a CUDA GPU. Uses 4-bit NF4 quantization by default (`--no-qua
 
 ## Docker
 
+**Dataset preparation** uses a lightweight CPU image (`Dockerfile.prepare`) with minimal dependencies. When run via DVC (`dvc repro prepare_dataset`), the image is built and run automatically:
+
+```bash
+# Build the dataset preparation image (done automatically by DVC)
+docker build -f llm_classifier/Dockerfile.prepare -t prepare-dataset .
+```
+
+**Training, export, and inference** use the full GPU image (`Dockerfile`):
+
 ```bash
 docker build -t medgemma .
 

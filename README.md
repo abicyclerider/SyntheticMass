@@ -66,7 +66,7 @@ generate_training → augment_training → prepare_dataset → train → export
 
 6. **generate_training** — Separate Synthea run (500 patients, seed 12345)
 7. **augment_training** — Augment training data with same error model
-8. **prepare_dataset** — Build HuggingFace dataset with Strategy D clinical summaries
+8. **prepare_dataset** — Build HuggingFace dataset with Strategy D clinical summaries (Docker)
 9. **train** — QLoRA fine-tuning on RunPod GPU (H100 ~2h, 3 epochs)
 10. **export** — Merge LoRA adapter into base model, push to HF Hub
 
@@ -90,10 +90,12 @@ SyntheticMass/
 
 ### Prerequisites
 
-- **Docker** — for Synthea data generation and entity resolution
-- **Python 3.11+** — for augmentation, entity resolution, and dataset preparation
+- **Docker** — all pipeline stages run in containers (no local Python environment needed except for development)
+- **Python 3.11+** — only needed for local development and testing
 - **GPU (48GB+ VRAM)** — for fine-tuning and inference (H100 or L40S recommended)
 - **DVC** — for pipeline orchestration (`pip install dvc`)
+
+All `docker build` commands tag images with both a bare name and the current git SHA (e.g., `entity_resolution:abc1234`) for debugging and rollback.
 
 ### Quick Start
 

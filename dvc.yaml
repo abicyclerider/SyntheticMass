@@ -5,7 +5,7 @@ stages:
   generate:
     cmd: >-
       rm -rf synthea_runner/output/synthea_raw &&
-      docker build -t synthea synthea_runner/synthea-docker/ &&
+      docker build -t synthea -t synthea:$(git rev-parse --short HEAD) synthea_runner/synthea-docker/ &&
       docker run --rm
       -e JAVA_OPTS=-Xmx8g
       -v $(pwd)/synthea_runner/output/synthea_raw:/synthea/synthea/output
@@ -25,7 +25,7 @@ stages:
   augment:
     cmd: >-
       rm -rf output/augmented &&
-      docker build -t augmentation augmentation/ &&
+      docker build -t augmentation -t augmentation:$(git rev-parse --short HEAD) augmentation/ &&
       docker run --rm
       -v $(pwd)/synthea_runner/output/synthea_raw/csv:/data/input:ro
       -v $(pwd)/output/augmented:/data/output
@@ -48,7 +48,7 @@ stages:
   resolve:
     cmd: >-
       rm -rf output/resolved &&
-      docker build -f entity_resolution/Dockerfile -t entity_resolution . &&
+      docker build -f entity_resolution/Dockerfile -t entity_resolution -t entity_resolution:$(git rev-parse --short HEAD) . &&
       docker run --rm
       -v $(pwd)/output/augmented:/data/augmented:ro
       -v $(pwd)/output/resolved:/data/resolved
@@ -94,6 +94,7 @@ stages:
   golden_records:
     cmd: >-
       rm -rf output/golden_records &&
+      docker build -f entity_resolution/Dockerfile -t entity_resolution -t entity_resolution:$(git rev-parse --short HEAD) . &&
       docker run --rm
       -v $(pwd)/output/augmented:/data/augmented:ro
       -v $(pwd)/output/resolved:/data/resolved:ro
@@ -122,7 +123,7 @@ stages:
   generate_training:
     cmd: >-
       rm -rf output/training/synthea_raw &&
-      docker build -t synthea synthea_runner/synthea-docker/ &&
+      docker build -t synthea -t synthea:$(git rev-parse --short HEAD) synthea_runner/synthea-docker/ &&
       docker run --rm
       -e JAVA_OPTS=-Xmx8g
       -v $(pwd)/output/training/synthea_raw:/synthea/synthea/output
@@ -142,7 +143,7 @@ stages:
   augment_training:
     cmd: >-
       rm -rf output/training/augmented &&
-      docker build -t augmentation augmentation/ &&
+      docker build -t augmentation -t augmentation:$(git rev-parse --short HEAD) augmentation/ &&
       docker run --rm
       -v $(pwd)/output/training/synthea_raw/csv:/data/input:ro
       -v $(pwd)/output/training/augmented:/data/output
@@ -166,15 +167,23 @@ stages:
     cmd: >-
       rm -rf output/training/dataset &&
       mkdir -p output/training/dataset &&
+      docker build -f llm_classifier/Dockerfile.prepare -t prepare-dataset -t prepare-dataset:$(git rev-parse --short HEAD) . &&
+      docker run --rm
+      -v $(pwd)/output/training/augmented:/data/augmented:ro
+      -v $(pwd)/output/training/dataset:/data/dataset
+      -v $(pwd)/llm_classifier/.env:/app/.env:ro
+      prepare-dataset
       python llm_classifier/prepare_dataset.py
-      --augmented-dir output/training/augmented
-      --output-dir output/training/dataset
+      --augmented-dir /data/augmented
+      --output-dir /data/dataset
       --seed ${prepare_dataset.seed}
     params:
     - prepare_dataset.seed
     deps:
     - output/training/augmented
     - llm_classifier/prepare_dataset.py
+    - llm_classifier/Dockerfile.prepare
+    - llm_classifier/requirements-prepare.txt
     - shared/summarize.py
     - shared/data_loader.py
     - shared/ground_truth.py

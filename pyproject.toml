@@ -14,7 +14,7 @@ exclude = ["augmentation.tests*"]
 [tool.ruff]
 target-version = "py311"
 line-length = 88
-extend-exclude = ["fine_tuning", "synthea_runner"]
+extend-exclude = ["llm_classifier", "synthea_runner"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]

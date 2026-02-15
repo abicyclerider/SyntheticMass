@@ -69,7 +69,7 @@ docker run --gpus all -e HF_TOKEN=hf_... medgemma python infer_classifier.py --d
 ## Local Setup (without Docker)
 
 ```bash
-cd fine_tuning
+cd llm_classifier
 python3 -m venv .venv
 source .venv/bin/activate
 pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
@@ -90,7 +90,7 @@ Dataset.from_pandas(df).push_to_hub('abicyclerider/grey-zone-pairs')
 "
 
 # 2. Launch inference on RunPod (fire and forget)
-cd fine_tuning
+cd llm_classifier
 ./launch_pod.sh infer \
     --hf-input abicyclerider/grey-zone-pairs \
     --hf-output abicyclerider/grey-zone-predictions
@@ -116,7 +116,7 @@ Override GPU type (default: NVIDIA L40S):
 
 Prerequisites:
 - `runpodctl` configured (`~/.runpod/config.toml` with API key)
-- `HF_TOKEN` in `fine_tuning/.env`
+- `HF_TOKEN` in `llm_classifier/.env`
 - GHCR package set to public (`gh api -X PUT /user/packages/container/medgemma-pipeline/visibility -f visibility=public`)
 
 See [`RUNPOD_GUIDE.md`](RUNPOD_GUIDE.md) for SSH-based provisioning and manual training commands.

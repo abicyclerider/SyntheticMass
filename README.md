@@ -14,7 +14,7 @@ SyntheticMass/
 ├── augmentation/            # Error injection, duplicates, ground truth labels
 ├── entity_resolution/       # Splink blocking, pair generation, golden records
 │   └── core/                # Core algorithms (splink_linker, golden_record, evaluation)
-├── fine_tuning/             # MedGemma 4B QLoRA training & inference
+├── llm_classifier/         # MedGemma 4B classifier: data prep, training, export, inference
 ├── shared/                  # Shared utilities (data_loader, summarizer, ground_truth)
 ├── output/                  # DVC-managed pipeline outputs (gitignored)
 ├── dvc.yaml                 # Pipeline definition (10 stages)
@@ -66,7 +66,7 @@ dvc repro resolve
 dvc dag
 ```
 
-GPU stages (infer, train, export) run on [RunPod](https://www.runpod.io/) via automated scripts. See [`fine_tuning/README.md`](fine_tuning/README.md) for details.
+GPU stages (infer, train, export) run on [RunPod](https://www.runpod.io/) via automated scripts. See [`llm_classifier/README.md`](llm_classifier/README.md) for details.
 
 ## Key Results
 

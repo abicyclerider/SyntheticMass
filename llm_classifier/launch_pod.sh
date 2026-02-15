@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch a fine-tuning pipeline stage on RunPod GPU.
+# Launch an LLM classifier pipeline stage on RunPod GPU.
 #
 # Usage:
 #   ./launch_pod.sh infer --hf-input abicyclerider/grey-zone-pairs --hf-output abicyclerider/grey-zone-predictions  # "grey" spelling in HF repo names

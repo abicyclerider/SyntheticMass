@@ -76,16 +76,16 @@ stages:
     cmd: >-
       rm -rf output/inferred &&
       mkdir -p output/inferred &&
-      fine_tuning/infer_remote.sh
+      llm_classifier/infer_remote.sh
       output/resolved/gray_zone_pairs.parquet
       output/inferred/predictions.parquet
     deps:
-    - fine_tuning/Dockerfile
-    - fine_tuning/_remote_helpers.sh
-    - fine_tuning/infer_remote.sh
-    - fine_tuning/infer_classifier.py
-    - fine_tuning/requirements.txt
-    - fine_tuning/launch_pod.sh
+    - llm_classifier/Dockerfile
+    - llm_classifier/_remote_helpers.sh
+    - llm_classifier/infer_remote.sh
+    - llm_classifier/infer_classifier.py
+    - llm_classifier/requirements.txt
+    - llm_classifier/launch_pod.sh
     - output/resolved/gray_zone_pairs.parquet
     outs:
     - output/inferred/predictions.parquet:
@@ -166,7 +166,7 @@ stages:
     cmd: >-
       rm -rf output/training/dataset &&
       mkdir -p output/training/dataset &&
-      python fine_tuning/prepare_dataset.py
+      python llm_classifier/prepare_dataset.py
       --augmented-dir output/training/augmented
       --output-dir output/training/dataset
       --seed ${prepare_dataset.seed}
@@ -174,7 +174,7 @@ stages:
     - prepare_dataset.seed
     deps:
     - output/training/augmented
-    - fine_tuning/prepare_dataset.py
+    - llm_classifier/prepare_dataset.py
     - shared/summarize.py
     - shared/data_loader.py
     - shared/ground_truth.py
@@ -187,7 +187,7 @@ stages:
     cmd: >-
       rm -rf output/training/train &&
       mkdir -p output/training/train &&
-      fine_tuning/train_remote.sh
+      llm_classifier/train_remote.sh
       --gpu-type "NVIDIA H100 80GB HBM3"
       output/training/train
       --
@@ -204,12 +204,12 @@ stages:
     - train.lora_r
     deps:
     - output/training/dataset/dataset_info.json
-    - fine_tuning/train_classifier.py
-    - fine_tuning/train_remote.sh
-    - fine_tuning/_remote_helpers.sh
-    - fine_tuning/launch_pod.sh
-    - fine_tuning/Dockerfile
-    - fine_tuning/requirements.txt
+    - llm_classifier/train_classifier.py
+    - llm_classifier/train_remote.sh
+    - llm_classifier/_remote_helpers.sh
+    - llm_classifier/launch_pod.sh
+    - llm_classifier/Dockerfile
+    - llm_classifier/requirements.txt
     outs:
     - output/training/train/train_metrics.json:
         cache: false
@@ -218,17 +218,17 @@ stages:
     cmd: >-
       rm -rf output/training/export &&
       mkdir -p output/training/export &&
-      fine_tuning/export_remote.sh
+      llm_classifier/export_remote.sh
       --gpu-type "NVIDIA H100 80GB HBM3"
       output/training/export
     deps:
     - output/training/train/train_metrics.json
-    - fine_tuning/export_model.py
-    - fine_tuning/export_remote.sh
-    - fine_tuning/_remote_helpers.sh
-    - fine_tuning/launch_pod.sh
-    - fine_tuning/Dockerfile
-    - fine_tuning/requirements.txt
+    - llm_classifier/export_model.py
+    - llm_classifier/export_remote.sh
+    - llm_classifier/_remote_helpers.sh
+    - llm_classifier/launch_pod.sh
+    - llm_classifier/Dockerfile
+    - llm_classifier/requirements.txt
     outs:
     - output/training/export/export_info.json:
         cache: false

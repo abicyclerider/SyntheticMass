@@ -1,26 +1,16 @@
 # Entity Resolution Configuration
 # run_id and base_dir are now passed via CLI args (--augmented-dir, --output-dir)
 
-# Blocking strategy
-blocking:
-  strategy: "aggressive_multipass"  # Validated: 100% recall with 4-pass union
+# Splink v4 probabilistic linkage settings
+splink:
+  predict_threshold: 0.01       # Minimum match probability to keep as candidate
+  auto_match_probability: 0.95  # P >= 0.95 → definite match
+  auto_reject_probability: 0.05 # P < 0.05 → definite non-match
 
-# Comparison (8-feature system, max score = 8.0)
-comparison:
-  ssn_fuzzy: false        # Exact match (validated, F1=0.983)
-  birthdate_fuzzy: false  # Exact match (validated, F1=0.983)
-
-# Classification
-classification:
-  method: "tiered"
-  auto_reject_threshold: 4.0   # Score < 4.0 → definite non-match
-  auto_match_threshold: 6.0    # Score >= 6.0 → definite match
-  single_threshold: 5.60       # Gray zone fallback threshold (F1=0.983)
-
-# Gray zone: logit-space combination of demographic score + LLM confidence
+# Gray zone: logit-space combination of Splink probability + LLM confidence
 gray_zone:
-  w_demo: 0.5        # weight on demographic logit (total_score - 5.0)
-  w_llm: 1.0         # weight on LLM logit
+  w_splink: 0.5     # weight on Splink log-odds
+  w_llm: 1.0        # weight on LLM log-odds
   threshold: 0.0     # combined logit threshold (0.0 = 50/50 odds)
 
 # Golden record creation

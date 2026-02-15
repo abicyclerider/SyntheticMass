@@ -58,8 +58,8 @@ stages:
       --output-dir /data/resolved
       --config entity-resolution/config/matching_config.yaml
     params:
-    - resolve.auto_reject_threshold
-    - resolve.auto_match_threshold
+    - resolve.auto_match_probability
+    - resolve.auto_reject_probability
     deps:
     - output/augmented
     - entity-resolution/Dockerfile
@@ -81,6 +81,7 @@ stages:
       output/inferred/predictions.csv
     deps:
     - fine-tuning/Dockerfile
+    - fine-tuning/_remote_helpers.sh
     - fine-tuning/infer_remote.sh
     - fine-tuning/inference_classifier.py
     - fine-tuning/requirements.txt
@@ -97,7 +98,6 @@ stages:
       -v $(pwd)/output/augmented:/data/augmented:ro
       -v $(pwd)/output/resolved:/data/resolved:ro
       -v $(pwd)/output/inferred:/data/inferred:ro
-      -v $(pwd)/entity-resolution/models:/data/models:ro
       -v $(pwd)/output/golden_records:/data/golden_records
       entity-resolution
       python entity-resolution/build_golden_records.py
@@ -105,7 +105,6 @@ stages:
       --auto-matches /data/resolved/auto_matches.csv
       --predictions /data/inferred/predictions.csv
       --features /data/resolved/features.csv
-      --scorer-model /data/models/scorer_model.joblib
       --output-dir /data/golden_records
       --config entity-resolution/config/matching_config.yaml
     deps:
@@ -113,10 +112,123 @@ stages:
     - output/resolved/features.csv
     - output/inferred/predictions.csv
     - output/augmented
-    - entity-resolution/models/scorer_model.joblib
     - entity-resolution/build_golden_records.py
     - entity-resolution/src/
     - shared/
     outs:
     - output/golden_records:
+        cache: false
+
+  generate_training:
+    cmd: >-
+      rm -rf output/training/synthea_raw &&
+      docker build -t synthea synthea-runner/synthea-docker/ &&
+      docker run --rm
+      -e JAVA_OPTS=-Xmx8g
+      -v $(pwd)/output/training/synthea_raw:/synthea/synthea/output
+      synthea
+      /bin/sh -c "./run_synthea -p ${generate_training.population} -s ${generate_training.seed}
+      --exporter.baseDirectory=./output --exporter.csv.export=true
+      --exporter.fhir.export=false Massachusetts"
+    params:
+    - generate_training.population
+    - generate_training.seed
+    deps:
+    - synthea-runner/synthea-docker/Dockerfile
+    outs:
+    - output/training/synthea_raw/csv:
+        cache: false
+
+  augment_training:
+    cmd: >-
+      rm -rf output/training/augmented &&
+      docker build -t augmentation augmentation/ &&
+      docker run --rm
+      -v $(pwd)/output/training/synthea_raw/csv:/data/input:ro
+      -v $(pwd)/output/training/augmented:/data/output
+      augmentation
+      --input /data/input
+      --output /data/output
+      --random-seed ${augment_training.random_seed}
+    params:
+    - augment_training.random_seed
+    deps:
+    - output/training/synthea_raw/csv
+    - augmentation/Dockerfile
+    - augmentation/requirements-runtime.txt
+    - augmentation/cli/augment.py
+    - augmentation/config/default_config.yaml
+    outs:
+    - output/training/augmented:
+        cache: false
+
+  prepare_dataset:
+    cmd: >-
+      rm -rf output/training/dataset &&
+      mkdir -p output/training/dataset &&
+      python fine-tuning/prepare_dataset.py
+      --augmented-dir output/training/augmented
+      --output-dir output/training/dataset
+      --seed ${prepare_dataset.seed}
+    params:
+    - prepare_dataset.seed
+    deps:
+    - output/training/augmented
+    - fine-tuning/prepare_dataset.py
+    - shared/summarize.py
+    - shared/data_loader.py
+    - shared/ground_truth.py
+    - shared/medical_records.py
+    outs:
+    - output/training/dataset/dataset_info.json:
+        cache: false
+
+  train:
+    cmd: >-
+      rm -rf output/training/train &&
+      mkdir -p output/training/train &&
+      fine-tuning/train_remote.sh
+      --gpu-type "NVIDIA H100 80GB HBM3"
+      output/training/train
+      --
+      --epochs ${train.epochs}
+      --batch-size ${train.batch_size}
+      --lr ${train.lr}
+      --max-length ${train.max_length}
+      --lora-r ${train.lora_r}
+    params:
+    - train.epochs
+    - train.batch_size
+    - train.lr
+    - train.max_length
+    - train.lora_r
+    deps:
+    - output/training/dataset/dataset_info.json
+    - fine-tuning/train_classifier_on_gpu.py
+    - fine-tuning/train_remote.sh
+    - fine-tuning/_remote_helpers.sh
+    - fine-tuning/run_on_runpod.sh
+    - fine-tuning/Dockerfile
+    - fine-tuning/requirements.txt
+    outs:
+    - output/training/train/train_metrics.json:
+        cache: false
+
+  export:
+    cmd: >-
+      rm -rf output/training/export &&
+      mkdir -p output/training/export &&
+      fine-tuning/export_remote.sh
+      --gpu-type "NVIDIA H100 80GB HBM3"
+      output/training/export
+    deps:
+    - output/training/train/train_metrics.json
+    - fine-tuning/export_text_only_model.py
+    - fine-tuning/export_remote.sh
+    - fine-tuning/_remote_helpers.sh
+    - fine-tuning/run_on_runpod.sh
+    - fine-tuning/Dockerfile
+    - fine-tuning/requirements.txt
+    outs:
+    - output/training/export/export_info.json:
         cache: false

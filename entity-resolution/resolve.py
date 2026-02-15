@@ -120,11 +120,20 @@ def prepare_for_splink(patients_df: pd.DataFrame) -> pd.DataFrame:
     """Prepare patient DataFrame for Splink.
 
     Ensures:
+      - Only standardized lowercase columns are kept (drop uppercase Synthea
+        originals like SSN, STATE, ZIP that collide in case-insensitive DuckDB)
       - record_id is a column (not index)
       - birth_year column exists (for blocking)
       - Missing values are NaN (not empty strings or placeholders)
       - birthdate is string (for DateOfBirthComparison)
     """
+    # Columns Splink needs
+    keep_cols = [
+        "record_id", "first_name", "last_name", "address", "city", "state",
+        "zip", "ssn", "birthdate", "facility_id", "id", "gender",
+        "maiden_name", "birth_year",
+    ]
+
     df = patients_df.copy()
 
     # Ensure record_id is a column
@@ -140,6 +149,11 @@ def prepare_for_splink(patients_df: pd.DataFrame) -> pd.DataFrame:
         df["birthdate"]
     ):
         df["birthdate"] = df["birthdate"].dt.strftime("%Y-%m-%d")
+
+    # Drop uppercase Synthea columns that collide with standardized ones
+    # in DuckDB's case-insensitive namespace
+    cols_to_keep = [c for c in keep_cols if c in df.columns]
+    df = df[cols_to_keep]
 
     # Replace empty strings and sentinel values with NaN
     for col in ["ssn", "first_name", "last_name", "address", "city", "state", "zip"]:

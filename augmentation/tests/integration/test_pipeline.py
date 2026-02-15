@@ -149,7 +149,7 @@ class TestAugmentationPipeline:
         output_dir = temp_dir / "output"
 
         for facility_id, csvs in facility_csvs.items():
-            csv_handler.write_facility_csvs(
+            csv_handler.write_facility_data(
                 csvs, output_dir / "facilities", facility_id
             )
 
@@ -157,15 +157,15 @@ class TestAugmentationPipeline:
         for facility_id in range(1, 4):
             facility_dir = output_dir / "facilities" / f"facility_{facility_id:03d}"
             assert facility_dir.exists()
-            assert (facility_dir / "patients.csv").exists()
-            assert (facility_dir / "encounters.csv").exists()
+            assert (facility_dir / "patients.parquet").exists()
+            assert (facility_dir / "encounters.parquet").exists()
 
         # Step 7: Export ground truth
         metadata_dir = output_dir / "metadata"
-        ground_truth_tracker.export_ground_truth_csv(metadata_dir / "ground_truth.csv")
+        ground_truth_tracker.export_ground_truth(metadata_dir / "ground_truth.parquet")
         ground_truth_tracker.export_error_log_jsonl(metadata_dir / "error_log.jsonl")
 
-        assert (metadata_dir / "ground_truth.csv").exists()
+        assert (metadata_dir / "ground_truth.parquet").exists()
         assert (metadata_dir / "error_log.jsonl").exists()
 
         # Verify ground truth contains all patients

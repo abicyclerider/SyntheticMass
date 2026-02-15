@@ -15,6 +15,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="ghcr.io/abicyclerider/medgemma-pipeline:latest"
 DEFAULT_GPU="NVIDIA GeForce RTX 4090"
+DEFAULT_DISK=30
 
 # --- Parse stage name and forward remaining args ---
 if [[ $# -lt 1 ]]; then
@@ -37,13 +38,16 @@ case "$STAGE" in
         ;;
 esac
 
-# Allow GPU override via --gpu-type flag (must be first arg after stage)
+# Allow overrides via flags (must come after stage)
 GPU_TYPE="$DEFAULT_GPU"
-if [[ "${1:-}" == "--gpu-type" ]]; then
-    shift
-    GPU_TYPE="$1"
-    shift
-fi
+CONTAINER_DISK="$DEFAULT_DISK"
+while [[ "${1:-}" == --* ]]; do
+    case "$1" in
+        --gpu-type) GPU_TYPE="$2"; shift 2 ;;
+        --container-disk) CONTAINER_DISK="$2"; shift 2 ;;
+        *) break ;;  # Unknown flag — pass through to Python script
+    esac
+done
 
 # Build the Python command with forwarded args
 DOCKER_CMD="python $SCRIPT $*"
@@ -75,6 +79,7 @@ fi
 echo "Creating RunPod pod..."
 echo "  Image:   $IMAGE"
 echo "  GPU:     $GPU_TYPE"
+echo "  Disk:    ${CONTAINER_DISK}GB"
 echo "  Command: $DOCKER_CMD"
 echo ""
 
@@ -84,7 +89,7 @@ DOCKER_CMD_ESCAPED=$(echo "$DOCKER_CMD" | sed 's/"/\\"/g')
 RESPONSE=$(curl -s -X POST "https://api.runpod.io/graphql" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $RUNPOD_API_KEY" \
-    -d "{\"query\":\"mutation { podFindAndDeployOnDemand(input: { name: \\\"medgemma-$STAGE\\\", imageName: \\\"$IMAGE\\\", gpuTypeId: \\\"$GPU_TYPE\\\", gpuCount: 1, containerDiskInGb: 30, volumeInGb: 0, dockerArgs: \\\"$DOCKER_CMD_ESCAPED\\\", env: [ {key: \\\"HF_TOKEN\\\", value: \\\"$HF_TOKEN\\\"}, {key: \\\"RUNPOD_API_KEY\\\", value: \\\"$RUNPOD_API_KEY\\\"} ] }) { id imageName machine { podHostId } } }\"}")
+    -d "{\"query\":\"mutation { podFindAndDeployOnDemand(input: { name: \\\"medgemma-$STAGE\\\", imageName: \\\"$IMAGE\\\", gpuTypeId: \\\"$GPU_TYPE\\\", gpuCount: 1, containerDiskInGb: $CONTAINER_DISK, volumeInGb: 0, dockerArgs: \\\"$DOCKER_CMD_ESCAPED\\\", env: [ {key: \\\"HF_TOKEN\\\", value: \\\"$HF_TOKEN\\\"}, {key: \\\"RUNPOD_API_KEY\\\", value: \\\"$RUNPOD_API_KEY\\\"} ] }) { id imageName machine { podHostId } } }\"}")
 
 # Check for errors
 if echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if 'data' in d and d['data']['podFindAndDeployOnDemand'] else 1)" 2>/dev/null; then

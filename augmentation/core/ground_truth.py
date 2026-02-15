@@ -65,12 +65,12 @@ class GroundTruthTracker:
 
         self.error_log.extend(error_records)
 
-    def export_ground_truth_csv(self, output_path: Path) -> None:
+    def export_ground_truth(self, output_path: Path) -> None:
         """
-        Export ground truth CSV file.
+        Export ground truth as Parquet.
 
         Args:
-            output_path: Output file path
+            output_path: Output file path (.parquet)
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -79,7 +79,7 @@ class GroundTruthTracker:
         # Sort by patient UUID and facility ID
         df = df.sort_values(["original_patient_uuid", "facility_id"])
 
-        df.to_csv(output_path, index=False)
+        df.to_parquet(output_path, index=False)
 
     def export_error_log_jsonl(self, output_path: Path) -> None:
         """

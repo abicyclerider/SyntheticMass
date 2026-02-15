@@ -77,8 +77,8 @@ stages:
       rm -rf output/inferred &&
       mkdir -p output/inferred &&
       fine-tuning/infer_remote.sh
-      output/resolved/gray_zone_pairs.csv
-      output/inferred/predictions.csv
+      output/resolved/gray_zone_pairs.parquet
+      output/inferred/predictions.parquet
     deps:
     - fine-tuning/Dockerfile
     - fine-tuning/_remote_helpers.sh
@@ -86,9 +86,9 @@ stages:
     - fine-tuning/inference_classifier.py
     - fine-tuning/requirements.txt
     - fine-tuning/run_on_runpod.sh
-    - output/resolved/gray_zone_pairs.csv
+    - output/resolved/gray_zone_pairs.parquet
     outs:
-    - output/inferred/predictions.csv:
+    - output/inferred/predictions.parquet:
         cache: false
 
   golden_records:
@@ -102,15 +102,15 @@ stages:
       entity-resolution
       python entity-resolution/build_golden_records.py
       --augmented-dir /data/augmented
-      --auto-matches /data/resolved/auto_matches.csv
-      --predictions /data/inferred/predictions.csv
-      --features /data/resolved/features.csv
+      --auto-matches /data/resolved/auto_matches.parquet
+      --predictions /data/inferred/predictions.parquet
+      --features /data/resolved/features.parquet
       --output-dir /data/golden_records
       --config entity-resolution/config/matching_config.yaml
     deps:
-    - output/resolved/auto_matches.csv
-    - output/resolved/features.csv
-    - output/inferred/predictions.csv
+    - output/resolved/auto_matches.parquet
+    - output/resolved/features.parquet
+    - output/inferred/predictions.parquet
     - output/augmented
     - entity-resolution/build_golden_records.py
     - entity-resolution/src/

@@ -123,7 +123,7 @@ def main(
     ground_truth_df = add_record_ids_to_ground_truth(ground_truth_df, patients_df)
 
     # --- Step 1: Load auto-matches ---
-    auto_df = pd.read_csv(auto_matches)
+    auto_df = pd.read_parquet(auto_matches)
     auto_pairs = set()
     auto_scores = {}
     for _, row in auto_df.iterrows():

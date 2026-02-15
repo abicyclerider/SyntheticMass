@@ -62,14 +62,11 @@ def load_medical_records(
 
         for facility_dir in facility_dirs:
             parquet_path = facility_dir / f"{record_type}.parquet"
-            csv_path = facility_dir / f"{record_type}.csv"
 
-            if parquet_path.exists():
-                df = pd.read_parquet(parquet_path)
-            elif csv_path.exists():
-                df = pd.read_csv(csv_path, low_memory=False)
-            else:
+            if not parquet_path.exists():
                 continue
+
+            df = pd.read_parquet(parquet_path)
             df["facility_id"] = facility_dir.name
             frames.append(df)
 

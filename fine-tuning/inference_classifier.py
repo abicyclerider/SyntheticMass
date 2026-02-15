@@ -7,15 +7,15 @@ optional 4-bit NF4 quantization and runs batched inference.
 
 Three modes:
   --dataset      Evaluate on the HF test split, print metrics + save predictions
-  --input-csv    Classify a custom CSV (must have a 'text' column)
+  --input-file   Classify a local file (Parquet or CSV, must have a 'text' column)
   --hf-input     Load input from a HF Hub dataset (use with --hf-output)
 
 Usage:
     # Evaluate on HF test split
     python inference_classifier.py --dataset
 
-    # Classify custom CSV
-    python inference_classifier.py --input-csv gray_zone.csv --output-csv predictions.csv
+    # Classify local file (detects format from extension)
+    python inference_classifier.py --input-file gray_zone.parquet --output-file predictions.parquet
 
     # HF Hub round-trip (for remote GPU inference on RunPod / Vertex AI)
     python inference_classifier.py \
@@ -189,14 +189,29 @@ def evaluate_test_split(model, tokenizer, batch_size, max_length, output_csv):
         )
 
 
-def classify_csv(model, tokenizer, input_csv, output_csv, batch_size, max_length):
-    """Load a CSV, run batched inference, save results."""
-    print(f"\nLoading input CSV: {input_csv}")
-    df = pd.read_csv(input_csv)
+def _read_df(path: str) -> pd.DataFrame:
+    """Read a DataFrame from CSV or Parquet based on file extension."""
+    if path.endswith(".parquet"):
+        return pd.read_parquet(path)
+    return pd.read_csv(path)
+
+
+def _write_df(df: pd.DataFrame, path: str) -> None:
+    """Write a DataFrame to CSV or Parquet based on file extension."""
+    if path.endswith(".parquet"):
+        df.to_parquet(path, index=False)
+    else:
+        df.to_csv(path, index=False)
+
+
+def classify_file(model, tokenizer, input_path, output_path, batch_size, max_length):
+    """Load an input file (CSV or Parquet), run batched inference, save results."""
+    print(f"\nLoading input: {input_path}")
+    df = _read_df(input_path)
 
     if "text" not in df.columns:
         print(
-            f"ERROR: CSV must have a 'text' column. Found columns: {list(df.columns)}"
+            f"ERROR: Input must have a 'text' column. Found columns: {list(df.columns)}"
         )
         sys.exit(1)
 
@@ -228,24 +243,19 @@ def classify_csv(model, tokenizer, input_csv, output_csv, batch_size, max_length
     all_preds = np.array(all_preds)
     all_confs = np.array(all_confs)
 
-    # Build output
-    result = pd.DataFrame(
-        {
-            "text": [t[:200] + "..." if len(t) > 200 else t for t in texts],
-            "prediction": all_preds,
-            "confidence": np.round(all_confs, 4),
-        }
-    )
+    # Build output — drop text from result
+    result = df.drop(columns=["text"], errors="ignore").copy()
+    result["prediction"] = all_preds
+    result["confidence"] = np.round(all_confs, 4)
 
     if has_labels:
         labels = df["label"].values
-        result.insert(1, "label", labels)
         result["correct"] = (labels == all_preds).astype(int)
         print(f"\n  Accuracy: {accuracy_score(labels, all_preds):.4f}")
         print(f"  F1:       {f1_score(labels, all_preds, zero_division=0):.4f}")
 
-    result.to_csv(output_csv, index=False)
-    print(f"\n{len(texts)} predictions saved to {output_csv} ({elapsed:.1f}s)")
+    _write_df(result, output_path)
+    print(f"\n{len(texts)} predictions saved to {output_path} ({elapsed:.1f}s)")
     print(
         f"  Predicted match: {(all_preds == 1).sum()}, non-match: {(all_preds == 0).sum()}"
     )
@@ -358,9 +368,9 @@ def main():
         help="Evaluate on the HF test split and print metrics",
     )
     mode.add_argument(
-        "--input-csv",
+        "--input-file",
         type=str,
-        help="Path to input CSV with a 'text' column",
+        help="Path to input file (Parquet or CSV) with a 'text' column",
     )
     mode.add_argument(
         "--hf-input",
@@ -370,10 +380,10 @@ def main():
 
     # Options
     parser.add_argument(
-        "--output-csv",
+        "--output-file",
         type=str,
-        default="predictions.csv",
-        help="Path for output predictions CSV (default: predictions.csv)",
+        default="predictions.parquet",
+        help="Path for output predictions (default: predictions.parquet)",
     )
     parser.add_argument(
         "--batch-size", type=int, default=16, help="Inference batch size (default: 16)"
@@ -436,7 +446,7 @@ def main():
         # Run inference
         if args.dataset:
             evaluate_test_split(
-                model, tokenizer, args.batch_size, args.max_length, args.output_csv
+                model, tokenizer, args.batch_size, args.max_length, args.output_file
             )
         elif args.hf_input:
             classify_hf_dataset(
@@ -448,11 +458,11 @@ def main():
                 args.max_length,
             )
         else:
-            classify_csv(
+            classify_file(
                 model,
                 tokenizer,
-                args.input_csv,
-                args.output_csv,
+                args.input_file,
+                args.output_file,
                 args.batch_size,
                 args.max_length,
             )

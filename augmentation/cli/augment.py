@@ -313,9 +313,9 @@ def run_augmentation_pipeline(
             "[cyan]Writing output files...", total=len(facility_csvs) + 5
         )
 
-        # Write facility CSVs
+        # Write facility data as Parquet
         for facility_id, csvs in facility_csvs.items():
-            csv_handler.write_facility_csvs(
+            csv_handler.write_facility_data(
                 csvs, output_dir / "facilities", facility_id
             )
             progress.update(task6, advance=1)
@@ -323,10 +323,10 @@ def run_augmentation_pipeline(
         # Write metadata
         metadata_dir = output_dir / "metadata"
         metadata_dir.mkdir(parents=True, exist_ok=True)
-        facilities_df.to_csv(metadata_dir / "facilities.csv", index=False)
+        facilities_df.to_parquet(metadata_dir / "facilities.parquet", index=False)
         progress.update(task6, advance=1)
 
-        ground_truth_tracker.export_ground_truth_csv(metadata_dir / "ground_truth.csv")
+        ground_truth_tracker.export_ground_truth(metadata_dir / "ground_truth.parquet")
         progress.update(task6, advance=1)
 
         ground_truth_tracker.export_error_log_jsonl(metadata_dir / "error_log.jsonl")

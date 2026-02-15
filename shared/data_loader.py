@@ -36,15 +36,12 @@ def load_facility_patients(run_dir: str) -> pd.DataFrame:
     for facility_dir in facility_dirs:
         facility_id = facility_dir.name
         parquet_file = facility_dir / "patients.parquet"
-        csv_file = facility_dir / "patients.csv"
 
-        if parquet_file.exists():
-            df = pd.read_parquet(parquet_file)
-        elif csv_file.exists():
-            df = pd.read_csv(csv_file)
-        else:
-            logger.warning(f"No patients file found in {facility_id}")
+        if not parquet_file.exists():
+            logger.warning(f"No patients.parquet found in {facility_id}")
             continue
+
+        df = pd.read_parquet(parquet_file)
         df["facility_id"] = facility_id
         all_patients.append(df)
         logger.debug(f"Loaded {len(df)} patients from {facility_id}")

@@ -139,29 +139,27 @@ class CSVHandler:
         return csvs
 
     @classmethod
-    def write_facility_csvs(
+    def write_facility_data(
         cls,
         facility_csvs: Dict[str, pd.DataFrame],
         output_dir: Path,
         facility_id: int,
     ) -> None:
         """
-        Write all CSV files for a facility.
+        Write all data files for a facility as Parquet.
 
         Args:
-            facility_csvs: Dictionary mapping filename to DataFrame
+            facility_csvs: Dictionary mapping filename (e.g. 'patients.csv') to DataFrame
             output_dir: Base output directory
             facility_id: Facility identifier
         """
         facility_dir = output_dir / f"facility_{facility_id:03d}"
+        facility_dir.mkdir(parents=True, exist_ok=True)
 
         for filename, df in facility_csvs.items():
-            output_path = facility_dir / filename
-            cls.write_csv(df, output_path)
-
-            # Also write Parquet for faster downstream reads
-            parquet_path = output_path.with_suffix(".parquet")
-            parquet_path.parent.mkdir(parents=True, exist_ok=True)
+            # Convert .csv key to .parquet extension
+            parquet_name = Path(filename).with_suffix(".parquet").name
+            parquet_path = facility_dir / parquet_name
             df.to_parquet(parquet_path, index=False)
 
     @classmethod

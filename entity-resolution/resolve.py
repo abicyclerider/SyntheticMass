@@ -3,10 +3,10 @@
 Resolve stage: Splink probabilistic linkage → tiered classification → gray zone pair generation.
 
 Produces:
-  auto_matches.csv      — high-confidence matches (match_probability >= auto_match_probability)
-  gray_zone_pairs.csv   — pairs for LLM inference (record_id_1, record_id_2, text)
-  features.csv          — all candidate pair features (Splink output)
-  resolve_metrics.json  — blocking recall, tier counts, Splink-only benchmarks
+  auto_matches.parquet      — high-confidence matches (match_probability >= auto_match_probability)
+  gray_zone_pairs.parquet   — pairs for LLM inference (record_id_1, record_id_2, text)
+  features.parquet          — all candidate pair features (Splink output)
+  resolve_metrics.json      — blocking recall, tier counts, Splink-only benchmarks
 """
 
 import json

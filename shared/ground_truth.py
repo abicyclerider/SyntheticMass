@@ -23,12 +23,12 @@ def load_ground_truth(run_dir: str) -> pd.DataFrame:
         DataFrame with columns: facility_id, patient_id, true_patient_id
     """
     run_path = Path(run_dir)
-    ground_truth_file = run_path / "metadata" / "ground_truth.csv"
+    ground_truth_file = run_path / "metadata" / "ground_truth.parquet"
 
     if not ground_truth_file.exists():
         raise FileNotFoundError(f"Ground truth file not found: {ground_truth_file}")
 
-    df = pd.read_csv(ground_truth_file)
+    df = pd.read_parquet(ground_truth_file)
 
     # Normalize facility_id to match patient data format (e.g., 2 → "facility_002")
     if "facility_id" in df.columns:

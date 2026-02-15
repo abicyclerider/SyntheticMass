@@ -10,6 +10,7 @@ from augmentation.tests.fixtures.sample_data import (
 )
 
 
+@pytest.mark.unit
 class TestFacilityAssigner:
     """Test FacilityAssigner class."""
 

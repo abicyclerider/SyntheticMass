@@ -7,6 +7,7 @@ from augmentation.core import ErrorInjector
 from augmentation.tests.fixtures.sample_data import create_sample_patients
 
 
+@pytest.mark.unit
 class TestErrorInjector:
     """Test ErrorInjector class."""
 

@@ -80,6 +80,7 @@ def sample_patients():
     return pd.DataFrame(data)
 
 
+@pytest.mark.unit
 def test_build_settings(sample_config):
     """Test that build_settings returns valid SettingsCreator."""
     settings, threshold = build_settings(sample_config)
@@ -87,6 +88,7 @@ def test_build_settings(sample_config):
     assert threshold == 0.01
 
 
+@pytest.mark.unit
 def test_create_linker(sample_patients, sample_config):
     """Test that Linker can be created with sample data."""
     linker, threshold = create_linker(sample_patients, sample_config)
@@ -94,6 +96,7 @@ def test_create_linker(sample_patients, sample_config):
     assert threshold == 0.01
 
 
+@pytest.mark.unit
 def test_train_and_predict(sample_patients, sample_config):
     """Test full train + predict pipeline with sample data."""
     linker, _ = create_linker(sample_patients, sample_config)
@@ -106,6 +109,7 @@ def test_train_and_predict(sample_patients, sample_config):
     assert len(predictions) > 0
 
 
+@pytest.mark.unit
 def test_classify_predictions(sample_config):
     """Test classification of predictions into tiers."""
     predictions = pd.DataFrame(
@@ -131,6 +135,7 @@ def test_classify_predictions(sample_config):
     assert "record_id_1" in all_pred.columns
 
 
+@pytest.mark.unit
 def test_evaluate_splink_only(sample_config):
     """Test Splink-only evaluation metrics."""
     predictions = pd.DataFrame(
@@ -154,6 +159,7 @@ def test_evaluate_splink_only(sample_config):
     assert metrics["splink_only_best_f1"] == 1.0
 
 
+@pytest.mark.unit
 def test_splink_logit():
     """Test logit conversion."""
     # 0.5 -> 0.0 log-odds

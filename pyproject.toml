@@ -30,7 +30,7 @@ implicit_optional = true
 disable_error_code = ["var-annotated", "assignment", "arg-type", "call-overload", "return-value", "index", "operator", "misc", "has-type"]
 
 [tool.pytest.ini_options]
-testpaths = ["augmentation/tests", "entity_resolution/tests"]
+testpaths = ["augmentation/tests", "entity_resolution/tests", "shared/tests"]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"

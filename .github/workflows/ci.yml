@@ -42,6 +42,16 @@ jobs:
       - run: pip install -e . -r augmentation/requirements.txt
       - run: pytest augmentation/tests -m "not slow"
 
+  test-shared:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e . pytest
+      - run: pytest shared/tests -m "not slow"
+
   test-entity-resolution:
     runs-on: ubuntu-latest
     steps:

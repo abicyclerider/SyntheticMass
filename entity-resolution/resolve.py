@@ -25,7 +25,6 @@ _project_root = _script_dir.parent
 sys.path.insert(0, str(_script_dir))  # entity-resolution/ -> import src.*
 sys.path.insert(0, str(_project_root))  # project root -> import shared.*
 
-from src.blocking import generate_true_pairs_from_ground_truth  # noqa: E402
 from src.data_loader import create_record_id  # noqa: E402
 from src.splink_linker import (  # noqa: E402
     classify_predictions,
@@ -38,6 +37,7 @@ from src.splink_linker import (  # noqa: E402
 from shared.data_loader import load_facility_patients  # noqa: E402
 from shared.ground_truth import (  # noqa: E402
     add_record_ids_to_ground_truth,
+    generate_true_pairs_from_ground_truth,
     load_ground_truth,
 )
 from shared.medical_records import (  # noqa: E402
@@ -46,7 +46,13 @@ from shared.medical_records import (  # noqa: E402
 )
 
 # Only load the record types the summarizer actually uses
-SUMMARIZER_RECORD_TYPES = ["conditions", "medications", "allergies", "observations", "procedures"]
+SUMMARIZER_RECORD_TYPES = [
+    "conditions",
+    "medications",
+    "allergies",
+    "observations",
+    "procedures",
+]
 from shared.summarize import (  # noqa: E402
     INSTRUCTION,
     summarize_diff_friendly_from_records,
@@ -129,9 +135,20 @@ def prepare_for_splink(patients_df: pd.DataFrame) -> pd.DataFrame:
     """
     # Columns Splink needs
     keep_cols = [
-        "record_id", "first_name", "last_name", "address", "city", "state",
-        "zip", "ssn", "birthdate", "facility_id", "id", "gender",
-        "maiden_name", "birth_year",
+        "record_id",
+        "first_name",
+        "last_name",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "ssn",
+        "birthdate",
+        "facility_id",
+        "id",
+        "gender",
+        "maiden_name",
+        "birth_year",
     ]
 
     df = patients_df.copy()
@@ -230,10 +247,7 @@ def main(augmented_dir, output_dir, config):
     )
 
     # --- Step 6: Evaluate blocking recall ---
-    record_id_mapping = patients_df[["record_id", "facility_id", "id"]]
-    true_pairs = generate_true_pairs_from_ground_truth(
-        ground_truth_df, record_id_mapping
-    )
+    true_pairs = generate_true_pairs_from_ground_truth(ground_truth_df)
     # Check how many true pairs appear in Splink's predictions
     predicted_pairs_set = set()
     for _, row in all_predictions.iterrows():
@@ -256,7 +270,9 @@ def main(augmented_dir, output_dir, config):
 
     # --- Step 8: Gray zone pair text generation ---
     logger.info("Loading medical records for gray zone text generation...")
-    medical_records = load_medical_records(str(run_dir), record_types=SUMMARIZER_RECORD_TYPES)
+    medical_records = load_medical_records(
+        str(run_dir), record_types=SUMMARIZER_RECORD_TYPES
+    )
 
     gray_zone_df = generate_gray_zone_texts(gray_zone, patients_df, medical_records)
     gray_zone_df.to_csv(out / "gray_zone_pairs.csv", index=False)

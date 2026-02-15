@@ -13,7 +13,7 @@ Fine-tuned MedGemma 4B (text-only) for pairwise patient entity resolution on Syn
 
 | Stage | Script | Description |
 |-------|--------|-------------|
-| 1. Prepare dataset | `prepare_dataset.py` | Load Synthea data, generate Strategy D summaries, build balanced splits, push to HF Hub |
+| 1. Prepare dataset | `prepare_dataset.py` | Load Synthea data, generate Strategy D clinical summaries (year-grouped diffs of conditions, medications, allergies, observations, procedures), build balanced splits, push to HF Hub |
 | 2. Prepare base model | `prepare_base_model.py` | Strip vision tower from `google/medgemma-4b-it`, push text-only base to HF Hub (one-time, CPU) |
 | 3. Train | `train_classifier.py` | QLoRA fine-tuning on text-only base (H100 ~2.2h, L40S needs gradient checkpointing) |
 | 4. Export | `export_model.py` | Merge LoRA adapter into base, upload merged model |

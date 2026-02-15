@@ -4,7 +4,7 @@ A Python system to augment Synthea medical data with realistic demographic error
 
 ## Overview
 
-This system takes Synthea-generated patient data (571 patients, 18 CSV files) and:
+This system takes Synthea-generated patient data and:
 1. Distributes patients across 1-5+ healthcare facilities
 2. Chronologically splits encounters across facilities (simulating patient movement over time)
 3. Injects realistic demographic errors (name variations, address typos, etc.)
@@ -97,7 +97,7 @@ python -m augmentation.cli.augment --validate
 
 ### Error Type Refinement
 
-The current error types (name variations, address errors, date variations, SSN errors, formatting errors) are baseline implementations of common data quality issues. These can be refined and expanded based on research findings in `config/research/error_patterns.md`.
+The current error types (name variations, address errors, date variations, SSN errors, formatting errors) are implementations of common data quality issues, calibrated against research findings in [`config/research/error_patterns.md`](config/research/error_patterns.md). These can be further refined and expanded.
 
 To integrate research findings:
 1. Review error patterns identified in the research file

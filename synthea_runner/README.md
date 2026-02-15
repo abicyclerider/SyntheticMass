@@ -31,11 +31,11 @@ docker compose up
 # Output will be created in: ./output/synthea_raw/csv/
 ```
 
-The docker-compose configuration:
-- Generates **500 patients** from Massachusetts
-- Uses fixed seed **12345** for reproducible output
-- Allocates **4GB RAM** for Java heap
-- Exports **CSV format only** (FHIR disabled)
+Generation parameters are configured in [`params.yaml`](../params.yaml) and run via DVC. Defaults:
+- **500 patients** from Massachusetts
+- Fixed seeds for reproducibility (inference: 67890, training: 12345)
+- **8GB RAM** Java heap allocation
+- **CSV format only** (FHIR disabled)
 
 ## Generated Output
 

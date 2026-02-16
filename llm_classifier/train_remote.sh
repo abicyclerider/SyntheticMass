@@ -125,6 +125,19 @@ print(f'  Downloaded to {os.environ[\"OUTPUT\"]}')
     echo "WARNING: Failed to download mlflow.db (non-fatal)."
 fi
 
+# --- Merge into persistent history database ---
+HISTORY_DB="$(cd "$(dirname "$SCRIPT_DIR")" && pwd)/mlflow_history.db"
+RUN_DB="$(cd "$OUTPUT_DIR" && pwd)/mlflow.db"
+if [[ -f "$RUN_DB" ]]; then
+    echo ""
+    echo "=== Merge into MLflow history ==="
+    if python3 "$SCRIPT_DIR/merge_mlflow_runs.py" "$RUN_DB" "$HISTORY_DB"; then
+        echo "  History DB: $HISTORY_DB"
+    else
+        echo "WARNING: Failed to merge MLflow runs (non-fatal)."
+    fi
+fi
+
 echo ""
 echo "Done. Training metrics saved to $OUTPUT_DIR/train_metrics.json"
-echo "View training curves: mlflow ui --backend-store-uri sqlite:///\$(cd $OUTPUT_DIR && pwd)/mlflow.db"
+echo "View all runs: mlflow ui --backend-store-uri sqlite:///$HISTORY_DB"

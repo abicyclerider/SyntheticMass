@@ -215,9 +215,6 @@ output/
 output/**/*.csv
 output/**/*.json
 
-# DVC lock file (all outputs are reproducible via dvc repro; no remote configured)
-dvc.lock
-
 # Docker build sentinel files (produced by DVC build_* stages)
 .build/
 
@@ -226,6 +223,7 @@ dvc.lock
 
 # MLflow tracking data
 mlruns/
+mlflow_history.db
 
 # Claude Code (user-specific settings)
 .claude/

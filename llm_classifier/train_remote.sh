@@ -107,5 +107,23 @@ print(f'  Downloaded to {os.environ[\"OUTPUT\"]}')
     exit 1
 fi
 
+# --- Download MLflow logs ---
+echo ""
+echo "=== Download MLflow logs ==="
+if ! HF_TOKEN="$HF_TOKEN" REPO="$ADAPTER_REPO" OUTPUT_DIR="$OUTPUT_DIR" python3 -c "
+import os
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id=os.environ['REPO'],
+    allow_patterns='mlruns/**',
+    local_dir=os.environ['OUTPUT_DIR'],
+    token=os.environ['HF_TOKEN'],
+)
+print('  Downloaded MLflow logs to ' + os.environ['OUTPUT_DIR'] + '/mlruns/')
+"; then
+    echo "WARNING: Failed to download MLflow logs (non-fatal)."
+fi
+
 echo ""
 echo "Done. Training metrics saved to $OUTPUT_DIR/train_metrics.json"
+echo "View training curves: mlflow ui --backend-store-uri file://\$(cd $OUTPUT_DIR/mlruns && pwd)"

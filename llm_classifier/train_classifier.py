@@ -17,6 +17,7 @@ import json
 import os
 from datetime import datetime, timezone
 
+import mlflow
 import numpy as np
 import torch
 from datasets import load_dataset
@@ -177,6 +178,10 @@ def main():
     eff_batch = args.batch_size * args.grad_accum
     output_dir = "./output/medgemma-classifier"
 
+    # Configure MLflow tracking
+    mlflow.set_tracking_uri(f"file://{os.path.abspath('./mlruns')}")
+    mlflow.set_experiment("entity-resolution-classifier")
+
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=args.epochs,
@@ -199,7 +204,7 @@ def main():
         dataloader_num_workers=2,
         dataloader_pin_memory=True,
         seed=42,
-        report_to="none",
+        report_to="mlflow",
     )
 
     trainer = Trainer(
@@ -264,7 +269,7 @@ def main():
 
     # Push to Hub
     if not args.no_push:
-        from huggingface_hub import upload_file
+        from huggingface_hub import HfApi, upload_file
 
         print(f"\nPushing adapter to {ADAPTER_REPO} (private)...")
         model.push_to_hub(ADAPTER_REPO, private=True)
@@ -274,7 +279,19 @@ def main():
             path_in_repo="training_metrics.json",
             repo_id=ADAPTER_REPO,
         )
-        print("Done! Adapter + metrics available on HF Hub.")
+
+        # Upload MLflow logs so they can be downloaded locally
+        mlruns_dir = "./mlruns"
+        if os.path.exists(mlruns_dir):
+            print("Uploading MLflow logs to HF Hub...")
+            api = HfApi()
+            api.upload_folder(
+                folder_path=mlruns_dir,
+                repo_id=ADAPTER_REPO,
+                path_in_repo="mlruns",
+            )
+
+        print("Done! Adapter + metrics + MLflow logs available on HF Hub.")
     else:
         print("\n--no-push specified, skipping upload.")
 

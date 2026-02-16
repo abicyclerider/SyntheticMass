@@ -218,6 +218,9 @@ output/**/*.json
 # macOS system files
 .DS_Store
 
+# MLflow tracking data
+mlruns/
+
 # Editor and IDE directories
 .vscode/
 .idea/

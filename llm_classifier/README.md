@@ -129,3 +129,41 @@ Prerequisites:
 - GHCR package set to public (`gh api -X PUT /user/packages/container/medgemma-pipeline/visibility -f visibility=public`)
 
 See [`RUNPOD_GUIDE.md`](RUNPOD_GUIDE.md) for SSH-based provisioning and manual training commands.
+
+## Training Observability (MLflow)
+
+Training runs log per-step metrics to [MLflow](https://mlflow.org/) via the HuggingFace Trainer integration. Each run produces a SQLite database (`mlflow.db`) that is uploaded to HF Hub alongside the adapter, then downloaded and merged into a persistent local history.
+
+### What gets logged
+
+- **Per-step:** training loss, learning rate, gradient norm (every 25 steps)
+- **Per-epoch:** eval F1, precision, recall, accuracy, eval loss
+- **Hyperparameters:** all 148 TrainingArguments + model config params
+
+### Viewing training curves
+
+After a training run completes (via `dvc repro train` or `train_remote.sh`), the runs are automatically merged into `mlflow_history.db` at the project root:
+
+```bash
+# View all training runs side-by-side
+mlflow ui --backend-store-uri sqlite:///$(pwd)/mlflow_history.db
+
+# Opens http://127.0.0.1:5000
+# Navigate to entity-resolution-classifier experiment
+# Click a run name, then the "Model metrics" tab for charts
+```
+
+### How it works
+
+1. `train_classifier.py` configures MLflow with a SQLite backend (`sqlite:///mlflow.db`) and sets `report_to="mlflow"` in TrainingArguments
+2. HuggingFace Trainer auto-logs all metrics, params, and tags to the local `mlflow.db`
+3. After training, `mlflow.db` is uploaded to HF Hub with the adapter
+4. `train_remote.sh` downloads `mlflow.db` and merges it into `mlflow_history.db` via `merge_mlflow_runs.py`
+
+### Manual merge
+
+To manually merge a downloaded MLflow database:
+
+```bash
+python llm_classifier/merge_mlflow_runs.py output/training/train/mlflow.db mlflow_history.db
+```

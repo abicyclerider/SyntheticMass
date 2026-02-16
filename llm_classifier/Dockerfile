@@ -4,6 +4,8 @@
 
 FROM nvidia/cuda:12.4.1-base-ubuntu22.04
 
+LABEL org.opencontainers.image.source=https://github.com/abicyclerider/SyntheticMass
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 

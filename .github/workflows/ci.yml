@@ -106,10 +106,6 @@ jobs:
           cache-from: type=gha,scope=medgemma-pipeline
           cache-to: type=gha,mode=max,scope=medgemma-pipeline
 
-  # To enable auto-push to GHCR on merge to main, link the package to this repo:
-  # gh api -X PUT /user/packages/container/medgemma-pipeline/repositories/REPO_ID \
-  #   -f visibility=public
-
   docker-push-gpu:
     if: github.event_name == 'push'
     needs: docker-build-gpu

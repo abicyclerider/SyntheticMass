@@ -178,8 +178,9 @@ def main():
     eff_batch = args.batch_size * args.grad_accum
     output_dir = "./output/medgemma-classifier"
 
-    # Configure MLflow tracking
-    mlflow.set_tracking_uri(f"file://{os.path.abspath('./mlruns')}")
+    # Configure MLflow tracking (SQLite backend — file store is deprecated in MLflow 3.x)
+    mlflow_db = os.path.abspath("./mlflow.db")
+    mlflow.set_tracking_uri(f"sqlite:///{mlflow_db}")
     mlflow.set_experiment("entity-resolution-classifier")
 
     training_args = TrainingArguments(
@@ -269,7 +270,7 @@ def main():
 
     # Push to Hub
     if not args.no_push:
-        from huggingface_hub import HfApi, upload_file
+        from huggingface_hub import upload_file
 
         print(f"\nPushing adapter to {ADAPTER_REPO} (private)...")
         model.push_to_hub(ADAPTER_REPO, private=True)
@@ -280,15 +281,13 @@ def main():
             repo_id=ADAPTER_REPO,
         )
 
-        # Upload MLflow logs so they can be downloaded locally
-        mlruns_dir = "./mlruns"
-        if os.path.exists(mlruns_dir):
-            print("Uploading MLflow logs to HF Hub...")
-            api = HfApi()
-            api.upload_folder(
-                folder_path=mlruns_dir,
+        # Upload MLflow database so it can be downloaded locally
+        if os.path.exists(mlflow_db):
+            print("Uploading MLflow database to HF Hub...")
+            upload_file(
+                path_or_fileobj=mlflow_db,
+                path_in_repo="mlflow.db",
                 repo_id=ADAPTER_REPO,
-                path_in_repo="mlruns",
             )
 
         print("Done! Adapter + metrics + MLflow logs available on HF Hub.")

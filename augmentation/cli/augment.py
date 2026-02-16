@@ -238,58 +238,52 @@ def run_augmentation_pipeline(
         )
         console.print("[green]✓[/green] Assigned patients across facilities")
 
-        # Task 4: Split CSV files by facility
-        task4 = progress.add_task(
-            "[cyan]Splitting CSV files by facility...", total=None
+        # Tasks 4-7: Process each facility in a streaming fashion
+        # (split → inject errors → write → validate per facility to avoid OOM)
+        all_facilities = sorted(
+            {fid for fids in patient_facilities.values() for fid in fids}
         )
-        data_splitter = DataSplitter()
-        facility_csvs = data_splitter.split_csvs_by_facility(
-            synthea_csvs, patient_facilities, encounter_facilities
-        )
-        progress.update(task4, completed=True, total=1)
-        console.print(
-            f"[green]✓[/green] Split CSVs into {len(facility_csvs)} facility datasets"
+        num_facilities = len(all_facilities)
+
+        task_main = progress.add_task(
+            "[cyan]Processing facilities...", total=num_facilities
         )
 
-        # Task 5: Inject errors and track ground truth
-        task5 = progress.add_task(
-            "[cyan]Injecting demographic errors...", total=len(facility_csvs)
-        )
+        data_splitter = DataSplitter()
         error_injector = ErrorInjector(
             config.error_injection, random_seed=config.random_seed
         )
         ground_truth_tracker = GroundTruthTracker()
-
+        validator = DataValidator() if validate else None
         all_error_logs = []
+        validation_errors = []
 
-        for facility_id in sorted(facility_csvs.keys()):
-            patients_facility_df = facility_csvs[facility_id]["patients.csv"]
+        for facility_id in all_facilities:
+            # Split: extract this facility's data from synthea_csvs
+            facility_data = data_splitter.create_facility_csvs(
+                facility_id, synthea_csvs, patient_facilities, encounter_facilities
+            )
 
             # Inject errors
+            patients_facility_df = facility_data["patients.csv"]
             errored_patients_df, error_log = error_injector.inject_errors_into_patients(
                 patients_facility_df, facility_id
             )
-
-            # Replace in facility CSVs
-            facility_csvs[facility_id]["patients.csv"] = errored_patients_df
+            facility_data["patients.csv"] = errored_patients_df
 
             # Track ground truth
             for _, patient in errored_patients_df.iterrows():
                 patient_uuid = patient["Id"]
                 num_encounters = len(
-                    facility_csvs[facility_id]["encounters.csv"][
-                        facility_csvs[facility_id]["encounters.csv"]["PATIENT"]
-                        == patient_uuid
+                    facility_data["encounters.csv"][
+                        facility_data["encounters.csv"]["PATIENT"] == patient_uuid
                     ]
                 )
-
-                # Get error types applied to this patient
                 patient_errors = [
                     err["error_type"]
                     for err in error_log
                     if err["patient_uuid"] == patient_uuid
                 ]
-
                 ground_truth_tracker.add_patient_facility_mapping(
                     patient_uuid,
                     facility_id,
@@ -301,41 +295,61 @@ def run_augmentation_pipeline(
             ground_truth_tracker.add_error_records(error_log)
             all_error_logs.extend(error_log)
 
-            progress.update(task5, advance=1)
+            # Write immediately
+            data_handler.write_facility_data(
+                facility_data, output_dir / "facilities", facility_id
+            )
 
+            # Validate immediately
+            if validator:
+                is_valid, errors = validator.validate_facility_csvs(facility_data)
+                if not is_valid:
+                    validation_errors.extend(
+                        [f"Facility {facility_id}: {err}" for err in errors]
+                    )
+
+            progress.update(task_main, advance=1)
+            # facility_data goes out of scope here → memory freed
+
+        # Free source data (no longer needed)
+        del synthea_csvs
+
+        console.print(
+            f"[green]✓[/green] Split CSVs into {num_facilities} facility datasets"
+        )
         error_stats = error_injector.get_error_statistics(all_error_logs)
         console.print(
             f"[green]✓[/green] Applied {error_stats['total_errors']} demographic errors"
         )
 
-        # Task 6: Write output files
-        task6 = progress.add_task(
-            "[cyan]Writing output files...", total=len(facility_csvs) + 5
-        )
-
-        # Write facility data as Parquet
-        for facility_id, csvs in facility_csvs.items():
-            data_handler.write_facility_data(
-                csvs, output_dir / "facilities", facility_id
-            )
-            progress.update(task6, advance=1)
+        if validate:
+            if validation_errors:
+                console.print("\n[yellow]⚠ Validation warnings:[/yellow]")
+                for error in validation_errors[:10]:
+                    console.print(f"  • {error}")
+            else:
+                console.print("[green]✓[/green] All validations passed")
 
         # Write metadata
+        task_meta = progress.add_task(
+            "[cyan]Writing metadata...", total=5
+        )
+
         metadata_dir = output_dir / "metadata"
         metadata_dir.mkdir(parents=True, exist_ok=True)
         facilities_df.to_parquet(metadata_dir / "facilities.parquet", index=False)
-        progress.update(task6, advance=1)
+        progress.update(task_meta, advance=1)
 
         ground_truth_tracker.export_ground_truth(metadata_dir / "ground_truth.parquet")
-        progress.update(task6, advance=1)
+        progress.update(task_meta, advance=1)
 
         ground_truth_tracker.export_error_log_jsonl(metadata_dir / "error_log.jsonl")
-        progress.update(task6, advance=1)
+        progress.update(task_meta, advance=1)
 
         # Save run configuration
         with open(metadata_dir / "run_config.yaml", "w") as f:
             yaml.dump(config.model_dump(), f)
-        progress.update(task6, advance=1)
+        progress.update(task_meta, advance=1)
 
         # Write statistics
         statistics_dir = output_dir / "statistics"
@@ -350,33 +364,9 @@ def run_augmentation_pipeline(
         ground_truth_tracker.export_statistics_json(
             statistics_dir / "augmentation_report.json", additional_stats=combined_stats
         )
-        progress.update(task6, advance=1)
+        progress.update(task_meta, advance=1)
 
         console.print(f"[green]✓[/green] Output written to {output_dir}")
-
-        # Task 7: Validation
-        if validate:
-            task7 = progress.add_task(
-                "[cyan]Validating output...", total=len(facility_csvs)
-            )
-
-            validator = DataValidator()
-            validation_errors = []
-
-            for facility_id, csvs in facility_csvs.items():
-                is_valid, errors = validator.validate_facility_csvs(csvs)
-                if not is_valid:
-                    validation_errors.extend(
-                        [f"Facility {facility_id}: {err}" for err in errors]
-                    )
-                progress.update(task7, advance=1)
-
-            if validation_errors:
-                console.print("\n[yellow]⚠ Validation warnings:[/yellow]")
-                for error in validation_errors[:10]:  # Show first 10
-                    console.print(f"  • {error}")
-            else:
-                console.print("[green]✓[/green] All validations passed")
 
     # Display final summary
     display_summary(assignment_stats, error_stats, ground_truth_stats)

@@ -39,7 +39,7 @@ class DataSplitter:
         facility_csvs = {}
 
         for facility_id in sorted(all_facilities):
-            facility_csvs[facility_id] = self._create_facility_csvs(
+            facility_csvs[facility_id] = self.create_facility_csvs(
                 facility_id,
                 synthea_csvs,
                 patient_facilities,
@@ -48,7 +48,7 @@ class DataSplitter:
 
         return facility_csvs
 
-    def _create_facility_csvs(
+    def create_facility_csvs(
         self,
         facility_id: int,
         synthea_csvs: Dict[str, pd.DataFrame],

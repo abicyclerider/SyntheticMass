@@ -218,6 +218,9 @@ output/**/*.json
 # DVC lock file (all outputs are reproducible via dvc repro; no remote configured)
 dvc.lock
 
+# Docker build sentinel files (produced by DVC build_* stages)
+.build/
+
 # macOS system files
 .DS_Store
 

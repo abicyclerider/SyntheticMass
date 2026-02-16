@@ -2,10 +2,66 @@ vars:
 - params.yaml
 
 stages:
+  # ── Docker build stages ──────────────────────────────────────────────
+  build_synthea:
+    cmd: >-
+      mkdir -p .build &&
+      docker build -t synthea -t synthea:$(git rev-parse --short HEAD) synthea_runner/synthea-docker/ &&
+      docker image inspect synthea --format '{{.Id}}' > .build/synthea.iid
+    deps:
+    - synthea_runner/synthea-docker/Dockerfile
+    outs:
+    - .build/synthea.iid:
+        cache: false
+
+  build_augmentation:
+    cmd: >-
+      mkdir -p .build &&
+      docker build -t augmentation -t augmentation:$(git rev-parse --short HEAD) augmentation/ &&
+      docker image inspect augmentation --format '{{.Id}}' > .build/augmentation.iid
+    deps:
+    - augmentation/Dockerfile
+    - augmentation/requirements-runtime.txt
+    - augmentation/cli/augment.py
+    - augmentation/config/default_config.yaml
+    outs:
+    - .build/augmentation.iid:
+        cache: false
+
+  build_entity_resolution:
+    cmd: >-
+      mkdir -p .build &&
+      docker build -f entity_resolution/Dockerfile -t entity_resolution -t entity_resolution:$(git rev-parse --short HEAD) . &&
+      docker image inspect entity_resolution --format '{{.Id}}' > .build/entity_resolution.iid
+    deps:
+    - entity_resolution/Dockerfile
+    - entity_resolution/requirements-runtime.txt
+    - entity_resolution/core/
+    - shared/
+    outs:
+    - .build/entity_resolution.iid:
+        cache: false
+
+  build_prepare_dataset:
+    cmd: >-
+      mkdir -p .build &&
+      docker build -f llm_classifier/Dockerfile.prepare -t prepare-dataset -t prepare-dataset:$(git rev-parse --short HEAD) . &&
+      docker image inspect prepare-dataset --format '{{.Id}}' > .build/prepare-dataset.iid
+    deps:
+    - llm_classifier/Dockerfile.prepare
+    - llm_classifier/requirements-prepare.txt
+    - shared/summarize.py
+    - shared/data_loader.py
+    - shared/ground_truth.py
+    - shared/medical_records.py
+    outs:
+    - .build/prepare-dataset.iid:
+        cache: false
+
+  # ── Production pipeline ──────────────────────────────────────────────
   generate:
     cmd: >-
       rm -rf synthea_runner/output/synthea_raw &&
-      docker build -t synthea -t synthea:$(git rev-parse --short HEAD) synthea_runner/synthea-docker/ &&
       docker run --rm
       -e JAVA_OPTS=-Xmx8g
       -v $(pwd)/synthea_runner/output/synthea_raw:/synthea/synthea/output
@@ -17,7 +73,7 @@ stages:
     - generate.population
     - generate.seed
     deps:
-    - synthea_runner/synthea-docker/Dockerfile
+    - .build/synthea.iid
     outs:
     - synthea_runner/output/synthea_raw/csv:
         cache: false
@@ -25,7 +81,6 @@ stages:
   augment:
     cmd: >-
       rm -rf output/augmented &&
-      docker build -t augmentation -t augmentation:$(git rev-parse --short HEAD) augmentation/ &&
       docker run --rm
       -v $(pwd)/synthea_runner/output/synthea_raw/csv:/data/input:ro
       -v $(pwd)/output/augmented:/data/output
@@ -37,10 +92,7 @@ stages:
     - augment.random_seed
     deps:
     - synthea_runner/output/synthea_raw/csv
-    - augmentation/Dockerfile
-    - augmentation/requirements-runtime.txt
-    - augmentation/cli/augment.py
-    - augmentation/config/default_config.yaml
+    - .build/augmentation.iid
     outs:
     - output/augmented:
         cache: false
@@ -48,7 +100,6 @@ stages:
   resolve:
     cmd: >-
       rm -rf output/resolved &&
-      docker build -f entity_resolution/Dockerfile -t entity_resolution -t entity_resolution:$(git rev-parse --short HEAD) . &&
       docker run --rm
       -v $(pwd)/output/augmented:/data/augmented:ro
       -v $(pwd)/output/resolved:/data/resolved
@@ -62,12 +113,9 @@ stages:
     - resolve.auto_reject_probability
     deps:
     - output/augmented
-    - entity_resolution/Dockerfile
+    - .build/entity_resolution.iid
     - entity_resolution/resolve.py
-    - entity_resolution/core/
     - entity_resolution/config/matching_config.yaml
-    - entity_resolution/requirements-runtime.txt
-    - shared/
     outs:
     - output/resolved:
         cache: false
@@ -94,7 +142,6 @@ stages:
   golden_records:
     cmd: >-
       rm -rf output/golden_records &&
-      docker build -f entity_resolution/Dockerfile -t entity_resolution -t entity_resolution:$(git rev-parse --short HEAD) . &&
       docker run --rm
       -v $(pwd)/output/augmented:/data/augmented:ro
       -v $(pwd)/output/resolved:/data/resolved:ro
@@ -113,6 +160,7 @@ stages:
     - output/resolved/features.parquet
     - output/inferred/predictions.parquet
     - output/augmented
+    - .build/entity_resolution.iid
     - entity_resolution/build_golden_records.py
     - entity_resolution/core/
     - shared/
@@ -120,10 +168,10 @@ stages:
     - output/golden_records:
         cache: false
 
+  # ── Training pipeline ────────────────────────────────────────────────
   generate_training:
     cmd: >-
       rm -rf output/training/synthea_raw &&
-      docker build -t synthea -t synthea:$(git rev-parse --short HEAD) synthea_runner/synthea-docker/ &&
       docker run --rm
       -e JAVA_OPTS=-Xmx8g
       -v $(pwd)/output/training/synthea_raw:/synthea/synthea/output
@@ -135,7 +183,7 @@ stages:
     - generate_training.population
     - generate_training.seed
     deps:
-    - synthea_runner/synthea-docker/Dockerfile
+    - .build/synthea.iid
     outs:
     - output/training/synthea_raw/csv:
         cache: false
@@ -143,7 +191,6 @@ stages:
   augment_training:
     cmd: >-
       rm -rf output/training/augmented &&
-      docker build -t augmentation -t augmentation:$(git rev-parse --short HEAD) augmentation/ &&
       docker run --rm
       -v $(pwd)/output/training/synthea_raw/csv:/data/input:ro
       -v $(pwd)/output/training/augmented:/data/output
@@ -155,10 +202,7 @@ stages:
     - augment_training.random_seed
     deps:
     - output/training/synthea_raw/csv
-    - augmentation/Dockerfile
-    - augmentation/requirements-runtime.txt
-    - augmentation/cli/augment.py
-    - augmentation/config/default_config.yaml
+    - .build/augmentation.iid
     outs:
     - output/training/augmented:
         cache: false
@@ -167,7 +211,6 @@ stages:
     cmd: >-
       rm -rf output/training/dataset &&
       mkdir -p output/training/dataset &&
-      docker build -f llm_classifier/Dockerfile.prepare -t prepare-dataset -t prepare-dataset:$(git rev-parse --short HEAD) . &&
       docker run --rm
       -v $(pwd)/output/training/augmented:/data/augmented:ro
       -v $(pwd)/output/training/dataset:/data/dataset
@@ -181,13 +224,8 @@ stages:
     - prepare_dataset.seed
     deps:
     - output/training/augmented
+    - .build/prepare-dataset.iid
     - llm_classifier/prepare_dataset.py
-    - llm_classifier/Dockerfile.prepare
-    - llm_classifier/requirements-prepare.txt
-    - shared/summarize.py
-    - shared/data_loader.py
-    - shared/ground_truth.py
-    - shared/medical_records.py
     outs:
     - output/training/dataset/dataset_info.json:
         cache: false

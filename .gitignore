@@ -221,6 +221,9 @@ output/**/*.json
 # MLflow tracking data
 mlruns/
 
+# Claude Code (user-specific settings)
+.claude/
+
 # Editor and IDE directories
 .vscode/
 .idea/

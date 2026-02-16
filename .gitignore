@@ -215,6 +215,9 @@ output/
 output/**/*.csv
 output/**/*.json
 
+# DVC lock file (all outputs are reproducible via dvc repro; no remote configured)
+dvc.lock
+
 # macOS system files
 .DS_Store
 

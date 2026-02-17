@@ -95,6 +95,25 @@ SyntheticMass/
 - **GPU (48GB+ VRAM)** — for fine-tuning and inference (H100 or L40S recommended)
 - **DVC** — for pipeline orchestration (`pip install dvc`)
 
+### API Keys
+
+Two API keys are required for GPU stages (inference, training, export):
+
+| Key | Where to set it | How to get it |
+|-----|----------------|---------------|
+| `HF_TOKEN` | `llm_classifier/.env` | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) — needs **write** scope |
+| `RUNPOD_API_KEY` | `~/.runpod/config.toml` | [runpod.io/console/user/settings](https://www.runpod.io/console/user/settings) |
+
+```bash
+# Set up HF token
+echo "HF_TOKEN=hf_yourtoken" > llm_classifier/.env
+
+# Set up RunPod API key (requires runpodctl: https://github.com/runpod/runpodctl)
+runpodctl config --apiKey your_runpod_key
+```
+
+Non-GPU stages (generate, augment, resolve, golden_records) require no API keys.
+
 All `docker build` commands tag images with both a bare name and the current git SHA (e.g., `entity_resolution:abc1234`) for debugging and rollback.
 
 ### Quick Start

@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 import pandas as pd
 
@@ -138,14 +138,39 @@ class DataHandler:
 
         return csvs
 
+    # Date columns to parse per file
+    _DATE_COLUMNS: Dict[str, List[str]] = {
+        "encounters.csv": ["START", "STOP"],
+        "payer_transitions.csv": ["START_DATE", "END_DATE"],
+        "patients.csv": ["BIRTHDATE", "DEATHDATE"],
+    }
+
     @classmethod
-    def load_single_csv(cls, input_dir: Path, filename: str) -> pd.DataFrame:
+    def _resolve_parse_dates(
+        cls, filename: str, usecols: Optional[List[str]] = None
+    ) -> Optional[List[str]]:
+        """Return parse_dates list, filtered to usecols if given."""
+        date_cols = cls._DATE_COLUMNS.get(filename)
+        if not date_cols:
+            return None
+        if usecols is not None:
+            date_cols = [c for c in date_cols if c in usecols]
+        return date_cols or None
+
+    @classmethod
+    def load_single_csv(
+        cls,
+        input_dir: Path,
+        filename: str,
+        usecols: Optional[List[str]] = None,
+    ) -> pd.DataFrame:
         """
         Load one Synthea CSV file with standard date parsing and name stripping.
 
         Args:
             input_dir: Directory containing Synthea CSV files
             filename: CSV filename (e.g. 'patients.csv')
+            usecols: Optional list of columns to load (reduces memory)
 
         Returns:
             DataFrame with CSV contents
@@ -154,20 +179,72 @@ class DataHandler:
         if not file_path.exists():
             raise FileNotFoundError(f"Required CSV file not found: {file_path}")
 
-        parse_dates = None
-        if filename == "encounters.csv":
-            parse_dates = ["START", "STOP"]
-        elif filename == "payer_transitions.csv":
-            parse_dates = ["START_DATE", "END_DATE"]
-        elif filename == "patients.csv":
-            parse_dates = ["BIRTHDATE", "DEATHDATE"]
+        parse_dates = cls._resolve_parse_dates(filename, usecols)
 
-        df = cls.read_csv(file_path, parse_dates=parse_dates)
+        # low_memory=False gives better type inference but buffers the full file.
+        # When usecols limits columns, use True to avoid peak-memory spike.
+        df = pd.read_csv(
+            file_path,
+            parse_dates=parse_dates,
+            low_memory=usecols is not None,
+            **({"usecols": usecols} if usecols else {}),
+        )
 
         if filename == "patients.csv":
             df = cls._strip_synthea_numbers(df)
 
         return df
+
+    @classmethod
+    def stream_csv_chunks(
+        cls,
+        input_dir: Path,
+        filename: str,
+        chunksize: int = 500_000,
+        usecols: Optional[List[str]] = None,
+    ) -> Iterator[pd.DataFrame]:
+        """
+        Yield DataFrames chunk by chunk from a Synthea CSV file.
+
+        Uses the same date parsing as load_single_csv but reads incrementally
+        so that large files never fully reside in memory.
+
+        Args:
+            input_dir: Directory containing Synthea CSV files
+            filename: CSV filename
+            chunksize: Number of rows per chunk
+            usecols: Optional list of columns to load (reduces memory per chunk)
+
+        Yields:
+            DataFrame chunks
+        """
+        file_path = input_dir / filename
+        if not file_path.exists():
+            raise FileNotFoundError(f"Required CSV file not found: {file_path}")
+
+        parse_dates = cls._resolve_parse_dates(filename, usecols)
+
+        reader = pd.read_csv(
+            file_path,
+            parse_dates=parse_dates,
+            low_memory=True,
+            chunksize=chunksize,
+            **({"usecols": usecols} if usecols else {}),
+        )
+
+        for chunk in reader:
+            if filename == "patients.csv":
+                chunk = cls._strip_synthea_numbers(chunk)
+            yield chunk
+
+    @classmethod
+    def facility_parquet_path(
+        cls, output_dir: Path, facility_id: int, filename: str
+    ) -> Path:
+        """Return the Parquet path for a facility table, creating dirs as needed."""
+        facility_dir = output_dir / f"facility_{facility_id:03d}"
+        facility_dir.mkdir(parents=True, exist_ok=True)
+        return facility_dir / Path(filename).with_suffix(".parquet").name
 
     @classmethod
     def write_facility_table(

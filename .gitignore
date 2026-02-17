@@ -227,6 +227,7 @@ mlflow_history.db
 
 # Claude Code (user-specific settings)
 .claude/
+CLAUDE.md
 
 # Editor and IDE directories
 .vscode/

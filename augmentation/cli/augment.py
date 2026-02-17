@@ -202,16 +202,6 @@ def display_configuration(config: AugmentationConfig):
     console.print(table)
 
 
-def _build_encounter_to_facility_map(
-    per_facility_encounters: dict[int, set[str]],
-) -> dict[str, int]:
-    """Build a single encounter_id → facility_id dict from per-facility sets."""
-    enc_to_fac: dict[str, int] = {}
-    for fid, enc_ids in per_facility_encounters.items():
-        for eid in enc_ids:
-            enc_to_fac[eid] = fid
-    return enc_to_fac
-
 
 def _stream_table_to_facilities(
     data_handler: DataHandler,
@@ -221,7 +211,6 @@ def _stream_table_to_facilities(
     facilities_dir: Path,
     all_facilities: list[int],
     per_facility_patients: dict[int, set[str]],
-    per_facility_encounters: dict[int, set[str]] | None = None,
     per_facility_claim_ids: dict[int, set[str]] | None = None,
     chunksize: int = 500_000,
     payer_transitions_date_ranges: dict[int, pd.DataFrame] | None = None,
@@ -254,11 +243,7 @@ def _stream_table_to_facilities(
     is_encounters = table_name == "encounters.csv"
     is_reference = table_name in data_handler.REFERENCE_TABLES
 
-    # Use pre-built map if provided, otherwise build from per-facility sets
     enc_to_fac: dict[str, int] | None = enc_to_fac_map
-    if enc_to_fac is None and (is_encounter_linked or is_claims or is_encounters):
-        if per_facility_encounters is not None:
-            enc_to_fac = _build_encounter_to_facility_map(per_facility_encounters)
 
     def _write_subset(facility_id: int, subset: pd.DataFrame) -> None:
         nonlocal schema
@@ -426,17 +411,30 @@ def run_augmentation_pipeline(
         task1 = progress.add_task("[cyan]Loading core CSV files...", total=None)
         data_handler = DataHandler()
         patients_df = data_handler.load_single_csv(input_dir, "patients.csv")
-        # Only 3 columns needed for assignment — full encounters streamed later
-        encounters_light = data_handler.load_single_csv(
-            input_dir, "encounters.csv", usecols=["Id", "PATIENT", "START"]
-        )
         organizations_df = data_handler.load_single_csv(input_dir, "organizations.csv")
+
+        # Stream encounters into a dict (avoids holding a 3 GB DataFrame)
+        encounters_by_patient: dict[str, list[tuple[str, str]]] = {}
+        num_encounters_loaded = 0
+        for chunk in data_handler.stream_csv_chunks(
+            input_dir, "encounters.csv", usecols=["Id", "PATIENT", "START"]
+        ):
+            num_encounters_loaded += len(chunk)
+            for enc_id, patient, start in zip(
+                chunk["Id"], chunk["PATIENT"], chunk["START"]
+            ):
+                encounters_by_patient.setdefault(patient, []).append(
+                    (str(start), enc_id)
+                )
+        # Sort each patient's encounters chronologically
+        for enc_list in encounters_by_patient.values():
+            enc_list.sort()
+
         num_patients_loaded = len(patients_df)
-        num_encounters_loaded = len(encounters_light)
         progress.update(task1, completed=True, total=1)
         console.print(
             f"[green]✓[/green] Loaded {num_patients_loaded} patients, "
-            f"{num_encounters_loaded} encounters (lightweight)"
+            f"{num_encounters_loaded} encounters (streamed)"
         )
         _log_memory("after loading CSV data")
 
@@ -459,11 +457,11 @@ def run_augmentation_pipeline(
         )
         patient_facilities, encounter_facilities = (
             facility_assigner.assign_patients_to_facilities(
-                patients_df, encounters_light
+                patients_df["Id"].values, encounters_by_patient
             )
         )
-        # Free the lightweight DF immediately — the dicts hold all we need
-        del encounters_light
+        # Free encounters_by_patient immediately — enc_to_fac_map holds all we need
+        del encounters_by_patient
         progress.update(task3, completed=True, total=1)
         assignment_stats = facility_assigner.get_facility_statistics(
             patient_facilities, encounter_facilities
@@ -483,18 +481,15 @@ def run_augmentation_pipeline(
             for fid in fids:
                 per_facility_patients[fid].add(patient_uuid)
 
-        per_facility_encounters: dict[int, set[str]] = {
-            fid: set() for fid in all_facilities
-        }
-        for enc_id, fid in encounter_facilities.items():
-            per_facility_encounters[fid].add(enc_id)
+        # encounter_facilities IS our enc_to_fac_map — rename for clarity
+        enc_to_fac_map = encounter_facilities
+        del encounter_facilities
 
         # Build encounter counts per patient per facility by streaming
-        # (avoids holding encounters_light in memory alongside the dicts)
         facility_enc_counts: dict[int, dict[str, int]] = {
             fid: {} for fid in all_facilities
         }
-        enc_fac_series = pd.Series(encounter_facilities)
+        enc_fac_series = pd.Series(enc_to_fac_map)
         for chunk in data_handler.stream_csv_chunks(
             input_dir, "encounters.csv", usecols=["Id", "PATIENT"]
         ):
@@ -508,9 +503,9 @@ def run_augmentation_pipeline(
                 fec = facility_enc_counts[fid]
                 fec[patient] = fec.get(patient, 0) + cnt
         del enc_fac_series
-        # Free the large assignment dicts — all data is now in per_facility_*
-        # sets, facility_enc_counts, and assignment_stats.
-        del patient_facilities, encounter_facilities
+        # Free patient_facilities — data now in per_facility_patients,
+        # facility_enc_counts, enc_to_fac_map, and assignment_stats.
+        del patient_facilities
         _log_memory("after facility assignment")
 
         # ── Phase A: patients — error injection, ground truth, write ──
@@ -534,7 +529,7 @@ def run_augmentation_pipeline(
                 patients_df,
                 facility_id,
                 fac_patients_set,
-                per_facility_encounters[facility_id],
+                set(),  # patients.csv filtering doesn't use encounter set
             )
 
             # Inject errors
@@ -590,7 +585,7 @@ def run_augmentation_pipeline(
             facilities_dir,
             all_facilities,
             per_facility_patients,
-            per_facility_encounters,
+            enc_to_fac_map=enc_to_fac_map,
         )
         progress.update(task_a, advance=1)
 
@@ -603,13 +598,6 @@ def run_augmentation_pipeline(
         error_stats = error_injector.get_error_statistics(all_error_logs)
         del all_error_logs
         _log_memory("after Phase A")
-
-        # Build encounter→facility map once, then free the large per-facility
-        # encounter sets (~900MB for 10M UUIDs).  Phase B uses the map for
-        # encounter-linked tables; encounters.csv is already on disk.
-        enc_to_fac_map = _build_encounter_to_facility_map(per_facility_encounters)
-        del per_facility_encounters
-        _log_memory("after building enc_to_fac_map (freed per_facility_encounters)")
 
         # ── Phase B: stream remaining tables one at a time ──
         # Order: claims before claims_transactions; encounters already on disk.

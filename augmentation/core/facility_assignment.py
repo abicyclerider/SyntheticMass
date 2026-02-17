@@ -3,7 +3,6 @@
 from typing import Dict, List, Tuple
 
 import numpy as np
-import pandas as pd
 
 from ..config import FacilityDistributionConfig
 
@@ -33,15 +32,16 @@ class FacilityAssigner:
 
     def assign_patients_to_facilities(
         self,
-        patients_df: pd.DataFrame,
-        encounters_df: pd.DataFrame,
+        patient_ids: np.ndarray,
+        encounters_by_patient: Dict[str, List[Tuple[str, str]]],
     ) -> Tuple[Dict[str, List[int]], Dict[str, int]]:
         """
         Assign each patient to 1-5+ facilities and distribute encounters chronologically.
 
         Args:
-            patients_df: DataFrame with patient records (must have 'Id' column)
-            encounters_df: DataFrame with encounter records (must have 'Id', 'PATIENT', 'START' columns)
+            patient_ids: Array of patient UUIDs
+            encounters_by_patient: Dict mapping patient_uuid -> list of (start, enc_id) tuples,
+                                   pre-sorted chronologically per patient
 
         Returns:
             Tuple of:
@@ -51,13 +51,6 @@ class FacilityAssigner:
         patient_facilities = {}
         encounter_facilities = {}
 
-        # Pre-group encounters by patient (O(n_encounters) once, vs O(n_patients × n_encounters))
-        sorted_enc = encounters_df.sort_values("START")
-        encounters_by_patient: Dict[str, List[str]] = {}
-        for patient_id, enc_id in zip(sorted_enc["PATIENT"], sorted_enc["Id"]):
-            encounters_by_patient.setdefault(patient_id, []).append(enc_id)
-
-        patient_ids = patients_df["Id"].values
         max_available = self.config.num_facilities
         facility_range = np.arange(1, self.config.num_facilities + 1)
 
@@ -82,9 +75,11 @@ class FacilityAssigner:
             patient_facilities[patient_uuid] = assigned_facilities
 
             # Look up pre-sorted encounters for this patient (O(1) dict lookup)
-            enc_ids = encounters_by_patient.get(patient_uuid)
-            if not enc_ids:
+            enc_tuples = encounters_by_patient.get(patient_uuid)
+            if not enc_tuples:
                 continue
+            # Extract enc_ids from pre-sorted (start, enc_id) tuples
+            enc_ids = [t[1] for t in enc_tuples]
 
             # Distribute encounters across facilities
             encounter_distribution = self._distribute_encounters_chronologically(

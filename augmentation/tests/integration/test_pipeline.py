@@ -23,6 +23,18 @@ from augmentation.tests.fixtures.sample_data import create_sample_synthea_csvs
 from augmentation.utils import DataHandler, DataValidator
 
 
+def _to_encounters_by_patient(encounters_df):
+    """Convert encounters DataFrame to the dict format expected by assign_patients_to_facilities."""
+    result: dict[str, list[tuple[str, str]]] = {}
+    for enc_id, patient, start in zip(
+        encounters_df["Id"], encounters_df["PATIENT"], encounters_df["START"]
+    ):
+        result.setdefault(patient, []).append((str(start), enc_id))
+    for enc_list in result.values():
+        enc_list.sort()
+    return result
+
+
 class TestAugmentationPipeline:
     """Integration tests for the full pipeline."""
 
@@ -80,7 +92,9 @@ class TestAugmentationPipeline:
             config.facility_distribution, random_seed=42
         )
         patient_facilities, encounter_facilities = (
-            facility_assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            facility_assigner.assign_patients_to_facilities(
+                patients_df["Id"].values, _to_encounters_by_patient(encounters_df)
+            )
         )
 
         assert len(patient_facilities) == 10
@@ -182,7 +196,9 @@ class TestAugmentationPipeline:
             config.facility_distribution, random_seed=42
         )
         patient_facilities, encounter_facilities = (
-            facility_assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            facility_assigner.assign_patients_to_facilities(
+                patients_df["Id"].values, _to_encounters_by_patient(encounters_df)
+            )
         )
 
         data_splitter = DataSplitter()
@@ -224,7 +240,9 @@ class TestAugmentationPipeline:
             config.facility_distribution, random_seed=42
         )
         patient_facilities, encounter_facilities = (
-            facility_assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            facility_assigner.assign_patients_to_facilities(
+                patients_df["Id"].values, _to_encounters_by_patient(encounters_df)
+            )
         )
 
         data_splitter = DataSplitter()
@@ -250,7 +268,9 @@ class TestAugmentationPipeline:
             config.facility_distribution, random_seed=42
         )
         patient_facilities, encounter_facilities = (
-            facility_assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            facility_assigner.assign_patients_to_facilities(
+                patients_df["Id"].values, _to_encounters_by_patient(encounters_df)
+            )
         )
 
         data_splitter = DataSplitter()

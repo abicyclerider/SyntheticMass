@@ -10,6 +10,18 @@ from augmentation.tests.fixtures.sample_data import (
 )
 
 
+def _to_encounters_by_patient(encounters_df):
+    """Convert encounters DataFrame to the dict format expected by assign_patients_to_facilities."""
+    result: dict[str, list[tuple[str, str]]] = {}
+    for enc_id, patient, start in zip(
+        encounters_df["Id"], encounters_df["PATIENT"], encounters_df["START"]
+    ):
+        result.setdefault(patient, []).append((str(start), enc_id))
+    for enc_list in result.values():
+        enc_list.sort()
+    return result
+
+
 @pytest.mark.unit
 class TestFacilityAssigner:
     """Test FacilityAssigner class."""
@@ -23,7 +35,10 @@ class TestFacilityAssigner:
         encounters_df = create_sample_encounters(patients_df, 5)
 
         patient_facilities, encounter_facilities = (
-            assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            assigner.assign_patients_to_facilities(
+                patients_df["Id"].values,
+                _to_encounters_by_patient(encounters_df),
+            )
         )
 
         # All patients should be assigned
@@ -43,7 +58,10 @@ class TestFacilityAssigner:
         encounters_df = create_sample_encounters(patients_df, 5)
 
         patient_facilities, encounter_facilities = (
-            assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            assigner.assign_patients_to_facilities(
+                patients_df["Id"].values,
+                _to_encounters_by_patient(encounters_df),
+            )
         )
 
         # All encounters should be assigned
@@ -72,7 +90,8 @@ class TestFacilityAssigner:
         encounters_df = create_sample_encounters(patients_df, 10)
 
         patient_facilities, _ = assigner.assign_patients_to_facilities(
-            patients_df, encounters_df
+            patients_df["Id"].values,
+            _to_encounters_by_patient(encounters_df),
         )
 
         # Count patients by number of facilities
@@ -104,7 +123,10 @@ class TestFacilityAssigner:
         )  # Many encounters per patient
 
         patient_facilities, encounter_facilities = (
-            assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            assigner.assign_patients_to_facilities(
+                patients_df["Id"].values,
+                _to_encounters_by_patient(encounters_df),
+            )
         )
 
         # For each patient, check primary facility has ~60% of encounters
@@ -139,7 +161,10 @@ class TestFacilityAssigner:
         encounters_df = create_sample_encounters(patients_df, 20)
 
         patient_facilities, encounter_facilities = (
-            assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            assigner.assign_patients_to_facilities(
+                patients_df["Id"].values,
+                _to_encounters_by_patient(encounters_df),
+            )
         )
 
         # For each patient, verify temporal pattern
@@ -188,7 +213,10 @@ class TestFacilityAssigner:
         encounters_df = create_sample_encounters(patients_df, 5)
 
         patient_facilities, encounter_facilities = (
-            assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            assigner.assign_patients_to_facilities(
+                patients_df["Id"].values,
+                _to_encounters_by_patient(encounters_df),
+            )
         )
 
         stats = assigner.get_facility_statistics(

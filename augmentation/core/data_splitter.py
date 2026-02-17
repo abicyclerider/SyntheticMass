@@ -143,6 +143,7 @@ class DataSplitter:
         facility_encounters: Set[str],
         facility_encounters_df: Optional[pd.DataFrame] = None,
         facility_claim_ids: Optional[Set[str]] = None,
+        copy: bool = True,
     ) -> pd.DataFrame:
         """
         Filter a single source table for one facility.
@@ -160,28 +161,34 @@ class DataSplitter:
                 (required for payer_transitions temporal split)
             facility_claim_ids: Set of claim IDs for this facility
                 (required for claims_transactions)
+            copy: Whether to copy filtered results (default True). Pass False
+                when the caller discards the original (e.g. streaming chunks).
 
         Returns:
             Filtered DataFrame for this facility
         """
+
+        def _maybe_copy(result: pd.DataFrame) -> pd.DataFrame:
+            return result.copy() if copy else result
+
         if filename in self.data_handler.REFERENCE_TABLES:
-            return df.copy()
+            return _maybe_copy(df)
 
         elif filename == "patients.csv":
-            return df[df["Id"].isin(facility_patients)].copy()
+            return _maybe_copy(df[df["Id"].isin(facility_patients)])
 
         elif filename == "encounters.csv":
-            return df[df["Id"].isin(facility_encounters)].copy()
+            return _maybe_copy(df[df["Id"].isin(facility_encounters)])
 
         elif filename in self.data_handler.ENCOUNTER_LINKED_TABLES:
-            return df[df["ENCOUNTER"].isin(facility_encounters)].copy()
+            return _maybe_copy(df[df["ENCOUNTER"].isin(facility_encounters)])
 
         elif filename == "claims.csv":
-            return df[df["APPOINTMENTID"].isin(facility_encounters)].copy()
+            return _maybe_copy(df[df["APPOINTMENTID"].isin(facility_encounters)])
 
         elif filename == "claims_transactions.csv":
             if facility_claim_ids:
-                return df[df["CLAIMID"].isin(facility_claim_ids)].copy()
+                return _maybe_copy(df[df["CLAIMID"].isin(facility_claim_ids)])
             else:
                 return pd.DataFrame(columns=df.columns)
 

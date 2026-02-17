@@ -51,46 +51,45 @@ class FacilityAssigner:
         patient_facilities = {}
         encounter_facilities = {}
 
-        for _, patient in patients_df.iterrows():
-            patient_uuid = patient["Id"]
+        # Pre-group encounters by patient (O(n_encounters) once, vs O(n_patients × n_encounters))
+        sorted_enc = encounters_df.sort_values("START")
+        encounters_by_patient: Dict[str, List[str]] = {}
+        for patient_id, enc_id in zip(sorted_enc["PATIENT"], sorted_enc["Id"]):
+            encounters_by_patient.setdefault(patient_id, []).append(enc_id)
 
-            # Step 1: Determine number of facilities for this patient
-            num_facilities = self.rng.choice(
-                self.facility_counts, p=self.facility_count_probabilities
-            )
+        patient_ids = patients_df["Id"].values
+        max_available = self.config.num_facilities
+        facility_range = np.arange(1, self.config.num_facilities + 1)
 
-            # Handle case where patient needs more facilities than configured max
-            max_available = self.config.num_facilities
-            if num_facilities > max_available:
-                num_facilities = max_available
+        # Vectorized facility-count selection for all patients at once
+        num_facilities_arr = self.rng.choice(
+            self.facility_counts,
+            size=len(patient_ids),
+            p=self.facility_count_probabilities,
+        )
+        num_facilities_arr = np.minimum(num_facilities_arr, max_available)
 
-            # Step 2: Select specific facility IDs
+        for i, patient_uuid in enumerate(patient_ids):
+            num_facilities = int(num_facilities_arr[i])
+
+            # Select specific facility IDs
             assigned_facilities = self.rng.choice(
-                range(1, self.config.num_facilities + 1),
+                facility_range,
                 size=num_facilities,
                 replace=False,
             ).tolist()
 
-            # Primary facility is first in list
             patient_facilities[patient_uuid] = assigned_facilities
 
-            # Step 3: Get all encounters for this patient
-            patient_encounters = encounters_df[
-                encounters_df["PATIENT"] == patient_uuid
-            ].copy()
-
-            if len(patient_encounters) == 0:
+            # Look up pre-sorted encounters for this patient (O(1) dict lookup)
+            enc_ids = encounters_by_patient.get(patient_uuid)
+            if not enc_ids:
                 continue
 
-            # Step 4: Sort encounters chronologically
-            patient_encounters = patient_encounters.sort_values("START")
-
-            # Step 5: Distribute encounters across facilities
+            # Distribute encounters across facilities
             encounter_distribution = self._distribute_encounters_chronologically(
-                patient_encounters["Id"].tolist(), assigned_facilities
+                enc_ids, assigned_facilities
             )
-
-            # Add to master mapping
             encounter_facilities.update(encounter_distribution)
 
         return patient_facilities, encounter_facilities

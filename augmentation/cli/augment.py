@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 import click
+import pandas as pd
 import yaml
 from rich.console import Console
 from rich.panel import Panel
@@ -188,6 +189,17 @@ def display_configuration(config: AugmentationConfig):
     console.print(table)
 
 
+def _build_encounter_to_facility_map(
+    per_facility_encounters: dict[int, set[str]],
+) -> dict[str, int]:
+    """Build a single encounter_id → facility_id dict from per-facility sets."""
+    enc_to_fac: dict[str, int] = {}
+    for fid, enc_ids in per_facility_encounters.items():
+        for eid in enc_ids:
+            enc_to_fac[eid] = fid
+    return enc_to_fac
+
+
 def _stream_table_to_facilities(
     data_handler: DataHandler,
     data_splitter: DataSplitter,
@@ -199,13 +211,17 @@ def _stream_table_to_facilities(
     per_facility_encounters: dict[int, set[str]],
     per_facility_claim_ids: dict[int, set[str]] | None = None,
     chunksize: int = 500_000,
+    payer_transitions_date_ranges: dict[int, pd.DataFrame] | None = None,
 ) -> tuple[int, int]:
     """Stream a CSV in chunks, filter per facility, write Parquet incrementally.
 
     Uses PyArrow ParquetWriter so only one chunk resides in memory at a time.
-    For payer_transitions, reads back per-facility encounters.parquet for the
-    temporal split.  For claims, captures per-facility claim IDs into
-    *per_facility_claim_ids* (mutated in place).
+    For payer_transitions, uses pre-cached date ranges instead of re-reading
+    encounters.parquet per facility per chunk.  For claims, captures
+    per-facility claim IDs into *per_facility_claim_ids* (mutated in place).
+
+    For encounter-linked tables (conditions, medications, observations, etc.),
+    uses a single map+groupby per chunk instead of N × isin per facility.
 
     Returns:
         (total_rows, num_chunks) for progress reporting.
@@ -218,50 +234,116 @@ def _stream_table_to_facilities(
     total_rows = 0
     num_chunks = 0
 
+    # Determine which fast path applies
+    is_encounter_linked = table_name in data_handler.ENCOUNTER_LINKED_TABLES
+    is_claims = table_name == "claims.csv"
+    is_reference = table_name in data_handler.REFERENCE_TABLES
+
+    # Build encounter→facility map once for encounter-linked tables and claims
+    enc_to_fac: dict[str, int] | None = None
+    if is_encounter_linked or is_claims:
+        enc_to_fac = _build_encounter_to_facility_map(per_facility_encounters)
+
+    def _write_subset(facility_id: int, subset: pd.DataFrame) -> None:
+        nonlocal schema
+        if len(subset) == 0:
+            return
+        table = pa.Table.from_pandas(subset, preserve_index=False)
+        if schema is None:
+            schema = table.schema
+        if facility_id not in writers:
+            path = data_handler.facility_parquet_path(
+                facilities_dir, facility_id, table_name
+            )
+            writers[facility_id] = pq.ParquetWriter(str(path), schema)
+        writers[facility_id].write_table(table)
+
     for chunk in data_handler.stream_csv_chunks(input_dir, table_name, chunksize):
         total_rows += len(chunk)
         num_chunks += 1
 
-        for facility_id in all_facilities:
-            # payer_transitions needs facility encounters DataFrame
-            fac_encounters_df = None
-            if table_name == "payer_transitions.csv":
-                fac_encounters_df = data_handler.read_facility_table(
-                    facilities_dir, facility_id, "encounters.csv"
+        if is_reference:
+            # Reference tables: write full chunk to every facility
+            for facility_id in all_facilities:
+                _write_subset(facility_id, chunk)
+
+        elif is_encounter_linked:
+            # Fast path: single map + groupby instead of N × isin
+            fac_col = chunk["ENCOUNTER"].map(enc_to_fac)
+            mask = fac_col.notna()
+            if mask.any():
+                matched = chunk[mask]
+                fac_ids = fac_col[mask].astype(int)
+                for facility_id, group_df in matched.groupby(fac_ids):
+                    _write_subset(facility_id, group_df)
+
+        elif is_claims:
+            # Fast path for claims: map APPOINTMENTID → facility
+            fac_col = chunk["APPOINTMENTID"].map(enc_to_fac)
+            mask = fac_col.notna()
+            if mask.any():
+                matched = chunk[mask]
+                fac_ids = fac_col[mask].astype(int)
+                for facility_id, group_df in matched.groupby(fac_ids):
+                    # Capture claim IDs
+                    if per_facility_claim_ids is not None:
+                        per_facility_claim_ids[facility_id].update(
+                            group_df["Id"].values
+                        )
+                    _write_subset(facility_id, group_df)
+
+        elif table_name == "payer_transitions.csv":
+            # Use cached date ranges instead of re-reading parquet each time
+            for facility_id in all_facilities:
+                fac_encounters_df = None
+                if payer_transitions_date_ranges is not None:
+                    fac_encounters_df = payer_transitions_date_ranges.get(facility_id)
+                if fac_encounters_df is None:
+                    # Fallback: read from disk (shouldn't happen with caching)
+                    try:
+                        fac_encounters_df = data_handler.read_facility_table(
+                            facilities_dir, facility_id, "encounters.csv"
+                        )
+                    except FileNotFoundError:
+                        continue
+
+                subset = data_splitter.filter_table_for_facility(
+                    table_name,
+                    chunk,
+                    facility_id,
+                    per_facility_patients[facility_id],
+                    per_facility_encounters[facility_id],
+                    facility_encounters_df=fac_encounters_df,
+                    copy=False,
+                )
+                _write_subset(facility_id, subset)
+
+        else:
+            # Generic fallback (claims_transactions, encounters, patients, etc.)
+            for facility_id in all_facilities:
+                subset = data_splitter.filter_table_for_facility(
+                    table_name,
+                    chunk,
+                    facility_id,
+                    per_facility_patients[facility_id],
+                    per_facility_encounters[facility_id],
+                    facility_claim_ids=(
+                        per_facility_claim_ids.get(facility_id)
+                        if per_facility_claim_ids
+                        else None
+                    ),
+                    copy=False,
                 )
 
-            subset = data_splitter.filter_table_for_facility(
-                table_name,
-                chunk,
-                facility_id,
-                per_facility_patients[facility_id],
-                per_facility_encounters[facility_id],
-                facility_encounters_df=fac_encounters_df,
-                facility_claim_ids=(
-                    per_facility_claim_ids.get(facility_id)
-                    if per_facility_claim_ids
-                    else None
-                ),
-            )
+                # Capture claim IDs while streaming claims.csv
+                if (
+                    table_name == "claims.csv"
+                    and per_facility_claim_ids is not None
+                    and len(subset) > 0
+                ):
+                    per_facility_claim_ids[facility_id].update(subset["Id"].values)
 
-            # Capture claim IDs while streaming claims.csv
-            if (
-                table_name == "claims.csv"
-                and per_facility_claim_ids is not None
-                and len(subset) > 0
-            ):
-                per_facility_claim_ids[facility_id].update(subset["Id"].values)
-
-            if len(subset) > 0:
-                table = pa.Table.from_pandas(subset, preserve_index=False)
-                if schema is None:
-                    schema = table.schema
-                if facility_id not in writers:
-                    path = data_handler.facility_parquet_path(
-                        facilities_dir, facility_id, table_name
-                    )
-                    writers[facility_id] = pq.ParquetWriter(str(path), schema)
-                writers[facility_id].write_table(table)
+                _write_subset(facility_id, subset)
 
     # Close all writers
     for w in writers.values():
@@ -380,14 +462,20 @@ def run_augmentation_pipeline(
         facility_enc_counts: dict[int, dict[str, int]] = {
             fid: {} for fid in all_facilities
         }
+        enc_fac_series = pd.Series(encounter_facilities)
         for chunk in data_handler.stream_csv_chunks(
             input_dir, "encounters.csv", usecols=["Id", "PATIENT"]
         ):
-            for enc_id, patient in zip(chunk["Id"], chunk["PATIENT"]):
-                fac_id = encounter_facilities.get(enc_id)
-                if fac_id is not None:
-                    counts = facility_enc_counts[fac_id]
-                    counts[patient] = counts.get(patient, 0) + 1
+            # Map encounter IDs to facility IDs in one vectorized pass
+            fac_ids = chunk["Id"].map(enc_fac_series)
+            mapped = chunk[fac_ids.notna()].copy()
+            mapped["_fac"] = fac_ids[fac_ids.notna()].astype(int)
+            # Group by (facility, patient) and count
+            counts = mapped.groupby(["_fac", "PATIENT"]).size()
+            for (fid, patient), cnt in counts.items():
+                fec = facility_enc_counts[fid]
+                fec[patient] = fec.get(patient, 0) + cnt
+        del enc_fac_series
 
         # ── Phase A: patients — error injection, ground truth, write ──
         task_a = progress.add_task(
@@ -420,18 +508,24 @@ def run_augmentation_pipeline(
 
             # Track ground truth (using precomputed encounter counts)
             enc_counts = facility_enc_counts[facility_id]
-            for _, patient in errored_patients_df.iterrows():
-                patient_uuid = patient["Id"]
-                patient_errors = [
+
+            # Build patient→error_types lookup (avoids O(patients × errors) scan)
+            errors_by_patient: dict[str, list[str]] = {}
+            for err in error_log:
+                errors_by_patient.setdefault(err["patient_uuid"], []).append(
                     err["error_type"]
-                    for err in error_log
-                    if err["patient_uuid"] == patient_uuid
-                ]
+                )
+
+            # Use itertuples() (much faster than iterrows())
+            id_col_idx = errored_patients_df.columns.get_loc("Id")
+            for row in errored_patients_df.itertuples(index=False):
+                patient_uuid = row[id_col_idx]
+                patient_errors = errors_by_patient.get(patient_uuid, [])
                 ground_truth_tracker.add_patient_facility_mapping(
                     patient_uuid,
                     facility_id,
                     enc_counts.get(patient_uuid, 0),
-                    patient.to_dict(),
+                    row._asdict(),
                     patient_errors,
                 )
 
@@ -500,6 +594,20 @@ def run_augmentation_pipeline(
             fid: set() for fid in all_facilities
         }
 
+        # Pre-cache per-facility encounter date ranges for payer_transitions
+        # (avoids re-reading encounters.parquet N_facilities × N_chunks times)
+        payer_transitions_date_ranges: dict[int, pd.DataFrame] | None = None
+        if (input_dir / "payer_transitions.csv").exists():
+            payer_transitions_date_ranges = {}
+            for facility_id in all_facilities:
+                try:
+                    enc_df = data_handler.read_facility_table(
+                        facilities_dir, facility_id, "encounters.csv"
+                    )
+                    payer_transitions_date_ranges[facility_id] = enc_df
+                except FileNotFoundError:
+                    pass
+
         for table_name in phase_b_tables:
             file_path = input_dir / table_name
             if not file_path.exists():
@@ -519,13 +627,14 @@ def run_augmentation_pipeline(
                 per_facility_patients,
                 per_facility_encounters,
                 per_facility_claim_ids=per_facility_claim_ids,
+                payer_transitions_date_ranges=payer_transitions_date_ranges,
             )
             console.print(
                 f"  [dim]{short_name}: {rows:,} rows in {chunks} chunk(s)[/dim]"
             )
             progress.update(task_b, advance=1)
 
-        del per_facility_claim_ids
+        del per_facility_claim_ids, payer_transitions_date_ranges
         elapsed_b = time.monotonic() - t0
         console.print(
             f"[green]✓[/green] Phase B complete: streamed {len(phase_b_tables)} tables "

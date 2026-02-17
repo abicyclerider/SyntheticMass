@@ -99,17 +99,30 @@ class ErrorInjector:
         errored_df = patients_df.copy()
         error_log = []
 
-        for idx, row in errored_df.iterrows():
-            patient_uuid = row["Id"]
+        n = len(errored_df)
+        if n == 0:
+            return errored_df, error_log
 
-            # Decide if this patient gets errors
-            if self.rng.random() >= self.config.global_error_rate:
-                continue  # No error for this patient
+        # Vectorized: decide which patients get errors
+        error_rolls = self.rng.random(n)
+        gets_error = error_rolls < self.config.global_error_rate
 
-            # Decide number of errors
+        # Vectorized: decide number of errors for patients that get them
+        multi_rolls = self.rng.random(n)
+        # Pre-generate integers for multi-error patients (2-3 errors)
+        multi_counts = self.rng.integers(2, 4, size=n)
+
+        indices = errored_df.index
+        id_values = errored_df["Id"].values
+
+        for pos in np.where(gets_error)[0]:
+            idx = indices[pos]
+            patient_uuid = id_values[pos]
+
+            # Decide number of errors (using pre-rolled values)
             num_errors = 1
-            if self.rng.random() < self.config.multiple_errors_probability:
-                num_errors = self.rng.integers(2, 4)  # 2-3 errors
+            if multi_rolls[pos] < self.config.multiple_errors_probability:
+                num_errors = int(multi_counts[pos])
 
             # Select error types
             selected_error_types = self.rng.choice(
@@ -182,9 +195,9 @@ class ErrorInjector:
         # Get original value
         original_value = df.at[row_idx, field]
 
-        # Apply error
+        # Apply error — avoid .to_dict() overhead; pass row as Series
         context = {
-            "patient_record": df.loc[row_idx].to_dict(),
+            "patient_record": df.loc[row_idx],
             "field_name": field,
             "facility_id": facility_id,
         }

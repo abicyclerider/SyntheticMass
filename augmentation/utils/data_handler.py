@@ -1,6 +1,5 @@
 """Data reading and writing utilities for Synthea CSV input and Parquet output."""
 
-import re
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional
 
@@ -400,18 +399,19 @@ class DataHandler:
         """
         df = patients_df.copy()
 
-        # Name fields to process
         name_fields = ["FIRST", "LAST", "MAIDEN"]
 
         for field in name_fields:
             if field in df.columns:
-                # Remove all digits, preserving original case and spacing
-                df[field] = df[field].apply(
-                    lambda x: re.sub(r"\d+", "", str(x)) if pd.notna(x) else x
+                mask = df[field].notna()
+                # Vectorized: remove digits and normalize whitespace in one pass
+                stripped = (
+                    df.loc[mask, field]
+                    .astype(str)
+                    .str.replace(r"\d+", "", regex=True)
+                    .str.strip()
+                    .str.replace(r"\s+", " ", regex=True)
                 )
-                # Clean up any extra whitespace created by digit removal
-                df[field] = df[field].apply(
-                    lambda x: " ".join(str(x).split()) if pd.notna(x) else x
-                )
+                df.loc[mask, field] = stripped
 
         return df

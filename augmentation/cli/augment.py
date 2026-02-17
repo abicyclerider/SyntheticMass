@@ -188,6 +188,98 @@ def display_configuration(config: AugmentationConfig):
     console.print(table)
 
 
+def _stream_table_to_facilities(
+    data_handler: DataHandler,
+    data_splitter: DataSplitter,
+    input_dir: Path,
+    table_name: str,
+    facilities_dir: Path,
+    all_facilities: list[int],
+    per_facility_patients: dict[int, set[str]],
+    per_facility_encounters: dict[int, set[str]],
+    per_facility_claim_ids: dict[int, set[str]] | None = None,
+    chunksize: int = 500_000,
+) -> tuple[int, int]:
+    """Stream a CSV in chunks, filter per facility, write Parquet incrementally.
+
+    Uses PyArrow ParquetWriter so only one chunk resides in memory at a time.
+    For payer_transitions, reads back per-facility encounters.parquet for the
+    temporal split.  For claims, captures per-facility claim IDs into
+    *per_facility_claim_ids* (mutated in place).
+
+    Returns:
+        (total_rows, num_chunks) for progress reporting.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    writers: dict[int, pq.ParquetWriter] = {}
+    schema: pa.Schema | None = None
+    total_rows = 0
+    num_chunks = 0
+
+    for chunk in data_handler.stream_csv_chunks(input_dir, table_name, chunksize):
+        total_rows += len(chunk)
+        num_chunks += 1
+
+        for facility_id in all_facilities:
+            # payer_transitions needs facility encounters DataFrame
+            fac_encounters_df = None
+            if table_name == "payer_transitions.csv":
+                fac_encounters_df = data_handler.read_facility_table(
+                    facilities_dir, facility_id, "encounters.csv"
+                )
+
+            subset = data_splitter.filter_table_for_facility(
+                table_name,
+                chunk,
+                facility_id,
+                per_facility_patients[facility_id],
+                per_facility_encounters[facility_id],
+                facility_encounters_df=fac_encounters_df,
+                facility_claim_ids=(
+                    per_facility_claim_ids.get(facility_id)
+                    if per_facility_claim_ids
+                    else None
+                ),
+            )
+
+            # Capture claim IDs while streaming claims.csv
+            if (
+                table_name == "claims.csv"
+                and per_facility_claim_ids is not None
+                and len(subset) > 0
+            ):
+                per_facility_claim_ids[facility_id].update(subset["Id"].values)
+
+            if len(subset) > 0:
+                table = pa.Table.from_pandas(subset, preserve_index=False)
+                if schema is None:
+                    schema = table.schema
+                if facility_id not in writers:
+                    path = data_handler.facility_parquet_path(
+                        facilities_dir, facility_id, table_name
+                    )
+                    writers[facility_id] = pq.ParquetWriter(str(path), schema)
+                writers[facility_id].write_table(table)
+
+    # Close all writers
+    for w in writers.values():
+        w.close()
+
+    # Write empty Parquet for facilities that had no rows for this table
+    if schema is not None:
+        empty_table = schema.empty_table()
+        for facility_id in all_facilities:
+            if facility_id not in writers:
+                path = data_handler.facility_parquet_path(
+                    facilities_dir, facility_id, table_name
+                )
+                pq.write_table(empty_table, str(path))
+
+    return total_rows, num_chunks
+
+
 def run_augmentation_pipeline(
     config: AugmentationConfig,
     output_dir: Path,
@@ -195,10 +287,15 @@ def run_augmentation_pipeline(
 ):
     """Run the complete augmentation pipeline.
 
-    Uses two-phase table streaming to keep peak memory low:
-      Phase A: Load patients + encounters + organizations, do assignment/errors/write.
-      Phase B: Stream each remaining table from disk, filter per facility, write.
-      Phase C: Validate each facility by reading back all Parquet files.
+    Uses chunked CSV streaming so that no single source table needs to fit
+    in memory.  Peak memory is bounded by one CSV chunk (~500 K rows) plus
+    the assignment dicts and ground-truth tracker.
+
+      Phase A: Lightweight encounters load (3 cols) for assignment, then
+               patients error-injection/write, encounters chunked write.
+      Phase B: Stream each remaining table in chunks with incremental
+               Parquet writing via PyArrow.
+      Phase C: Validate each facility by reading back Parquet files.
       Phase D: Write metadata (facilities, ground truth, config, statistics).
     """
     input_dir = config.paths.input_dir
@@ -212,16 +309,21 @@ def run_augmentation_pipeline(
         TaskProgressColumn(),
         console=console,
     ) as progress:
-        # ── Task 1: Load core tables only (patients, encounters, organizations) ──
+        # ── Task 1: Load patients + lightweight encounters + organizations ──
         task1 = progress.add_task("[cyan]Loading core CSV files...", total=None)
         data_handler = DataHandler()
         patients_df = data_handler.load_single_csv(input_dir, "patients.csv")
-        encounters_df = data_handler.load_single_csv(input_dir, "encounters.csv")
+        # Only 3 columns needed for assignment — full encounters streamed later
+        encounters_light = data_handler.load_single_csv(
+            input_dir, "encounters.csv", usecols=["Id", "PATIENT", "START"]
+        )
         organizations_df = data_handler.load_single_csv(input_dir, "organizations.csv")
+        num_patients_loaded = len(patients_df)
+        num_encounters_loaded = len(encounters_light)
         progress.update(task1, completed=True, total=1)
         console.print(
-            f"[green]✓[/green] Loaded {len(patients_df)} patients, "
-            f"{len(encounters_df)} encounters"
+            f"[green]✓[/green] Loaded {num_patients_loaded} patients, "
+            f"{num_encounters_loaded} encounters (lightweight)"
         )
 
         # ── Task 2: Generate facility metadata ──
@@ -242,8 +344,12 @@ def run_augmentation_pipeline(
             config.facility_distribution, random_seed=config.random_seed
         )
         patient_facilities, encounter_facilities = (
-            facility_assigner.assign_patients_to_facilities(patients_df, encounters_df)
+            facility_assigner.assign_patients_to_facilities(
+                patients_df, encounters_light
+            )
         )
+        # Free the lightweight DF immediately — the dicts hold all we need
+        del encounters_light
         progress.update(task3, completed=True, total=1)
         assignment_stats = facility_assigner.get_facility_statistics(
             patient_facilities, encounter_facilities
@@ -256,18 +362,36 @@ def run_augmentation_pipeline(
         )
         num_facilities = len(all_facilities)
 
-        per_facility_patients: dict[int, set[str]] = {fid: set() for fid in all_facilities}
+        per_facility_patients: dict[int, set[str]] = {
+            fid: set() for fid in all_facilities
+        }
         for patient_uuid, fids in patient_facilities.items():
             for fid in fids:
                 per_facility_patients[fid].add(patient_uuid)
 
-        per_facility_encounters: dict[int, set[str]] = {fid: set() for fid in all_facilities}
+        per_facility_encounters: dict[int, set[str]] = {
+            fid: set() for fid in all_facilities
+        }
         for enc_id, fid in encounter_facilities.items():
             per_facility_encounters[fid].add(enc_id)
 
-        # ── Phase A: patients + encounters — error injection, ground truth, write ──
+        # Build encounter counts per patient per facility by streaming
+        # (avoids holding encounters_light in memory alongside the dicts)
+        facility_enc_counts: dict[int, dict[str, int]] = {
+            fid: {} for fid in all_facilities
+        }
+        for chunk in data_handler.stream_csv_chunks(
+            input_dir, "encounters.csv", usecols=["Id", "PATIENT"]
+        ):
+            for enc_id, patient in zip(chunk["Id"], chunk["PATIENT"]):
+                fac_id = encounter_facilities.get(enc_id)
+                if fac_id is not None:
+                    counts = facility_enc_counts[fac_id]
+                    counts[patient] = counts.get(patient, 0) + 1
+
+        # ── Phase A: patients — error injection, ground truth, write ──
         task_a = progress.add_task(
-            "[cyan]Phase A: patients & encounters...", total=num_facilities
+            "[cyan]Phase A: patients & encounters...", total=num_facilities + 1
         )
 
         data_splitter = DataSplitter()
@@ -278,28 +402,26 @@ def run_augmentation_pipeline(
         all_error_logs = []
 
         for facility_id in all_facilities:
-            fac_patients = per_facility_patients[facility_id]
-            fac_encounters = per_facility_encounters[facility_id]
+            fac_patients_set = per_facility_patients[facility_id]
 
-            # Filter patients & encounters
+            # Filter patients
             fac_patients_df = data_splitter.filter_table_for_facility(
-                "patients.csv", patients_df, facility_id, fac_patients, fac_encounters
-            )
-            fac_encounters_df = data_splitter.filter_table_for_facility(
-                "encounters.csv", encounters_df, facility_id, fac_patients, fac_encounters
+                "patients.csv",
+                patients_df,
+                facility_id,
+                fac_patients_set,
+                per_facility_encounters[facility_id],
             )
 
-            # Inject errors into patients
+            # Inject errors
             errored_patients_df, error_log = error_injector.inject_errors_into_patients(
                 fac_patients_df, facility_id
             )
 
-            # Track ground truth
+            # Track ground truth (using precomputed encounter counts)
+            enc_counts = facility_enc_counts[facility_id]
             for _, patient in errored_patients_df.iterrows():
                 patient_uuid = patient["Id"]
-                num_enc = len(
-                    fac_encounters_df[fac_encounters_df["PATIENT"] == patient_uuid]
-                )
                 patient_errors = [
                     err["error_type"]
                     for err in error_log
@@ -308,7 +430,7 @@ def run_augmentation_pipeline(
                 ground_truth_tracker.add_patient_facility_mapping(
                     patient_uuid,
                     facility_id,
-                    num_enc,
+                    enc_counts.get(patient_uuid, 0),
                     patient.to_dict(),
                     patient_errors,
                 )
@@ -316,36 +438,42 @@ def run_augmentation_pipeline(
             ground_truth_tracker.add_error_records(error_log)
             all_error_logs.extend(error_log)
 
-            # Write patients (with errors) and encounters
+            # Write patients (with errors) and organizations
             data_handler.write_facility_table(
                 errored_patients_df, facilities_dir, facility_id, "patients.csv"
             )
-            data_handler.write_facility_table(
-                fac_encounters_df, facilities_dir, facility_id, "encounters.csv"
-            )
-
-            # Write organizations (reference table — same for all)
             data_handler.write_facility_table(
                 organizations_df, facilities_dir, facility_id, "organizations.csv"
             )
 
             progress.update(task_a, advance=1)
 
-        # Free core tables
-        del patients_df, encounters_df, organizations_df
+        del patients_df, organizations_df, facility_enc_counts
+
+        # Stream full encounters.csv in chunks → per-facility Parquet
+        progress.update(task_a, description="[cyan]Phase A: streaming encounters...")
+        enc_rows, enc_chunks = _stream_table_to_facilities(
+            data_handler,
+            data_splitter,
+            input_dir,
+            "encounters.csv",
+            facilities_dir,
+            all_facilities,
+            per_facility_patients,
+            per_facility_encounters,
+        )
+        progress.update(task_a, advance=1)
 
         elapsed_a = time.monotonic() - t0
         console.print(
-            f"[green]✓[/green] Phase A complete: patients & encounters for "
-            f"{num_facilities} facilities [dim]({elapsed_a:.1f}s)[/dim]"
+            f"[green]✓[/green] Phase A complete: {len(all_error_logs)} errors, "
+            f"{enc_rows:,} encounters in {enc_chunks} chunks "
+            f"[dim]({elapsed_a:.1f}s)[/dim]"
         )
         error_stats = error_injector.get_error_statistics(all_error_logs)
-        console.print(
-            f"[green]✓[/green] Applied {error_stats['total_errors']} demographic errors"
-        )
 
         # ── Phase B: stream remaining tables one at a time ──
-        # Order matters: claims before claims_transactions, encounters already on disk.
+        # Order: claims before claims_transactions; encounters already on disk.
         phase_b_tables = [
             "conditions.csv",
             "medications.csv",
@@ -368,8 +496,9 @@ def run_augmentation_pipeline(
             "[cyan]Phase B: streaming tables...", total=len(phase_b_tables)
         )
 
-        # Track per-facility claim IDs (populated when we process claims.csv)
-        per_facility_claim_ids: dict[int, set[str]] = {fid: set() for fid in all_facilities}
+        per_facility_claim_ids: dict[int, set[str]] = {
+            fid: set() for fid in all_facilities
+        }
 
         for table_name in phase_b_tables:
             file_path = input_dir / table_name
@@ -378,47 +507,22 @@ def run_augmentation_pipeline(
                 continue
 
             short_name = table_name.replace(".csv", "")
-            progress.update(
-                task_b,
-                description=f"[cyan]Phase B: {short_name}...",
+            progress.update(task_b, description=f"[cyan]Phase B: {short_name}...")
+
+            rows, chunks = _stream_table_to_facilities(
+                data_handler,
+                data_splitter,
+                input_dir,
+                table_name,
+                facilities_dir,
+                all_facilities,
+                per_facility_patients,
+                per_facility_encounters,
+                per_facility_claim_ids=per_facility_claim_ids,
             )
-            source_df = data_handler.load_single_csv(input_dir, table_name)
-            mem_mb = source_df.memory_usage(deep=True).sum() / 1_048_576
             console.print(
-                f"  [dim]{short_name}: {len(source_df):,} rows, "
-                f"{mem_mb:.0f} MB[/dim]"
+                f"  [dim]{short_name}: {rows:,} rows in {chunks} chunk(s)[/dim]"
             )
-
-            for facility_id in all_facilities:
-                fac_patients = per_facility_patients[facility_id]
-                fac_encounters = per_facility_encounters[facility_id]
-
-                # payer_transitions needs facility encounters DataFrame
-                fac_encounters_df = None
-                if table_name == "payer_transitions.csv":
-                    fac_encounters_df = data_handler.read_facility_table(
-                        facilities_dir, facility_id, "encounters.csv"
-                    )
-
-                subset = data_splitter.filter_table_for_facility(
-                    table_name,
-                    source_df,
-                    facility_id,
-                    fac_patients,
-                    fac_encounters,
-                    facility_encounters_df=fac_encounters_df,
-                    facility_claim_ids=per_facility_claim_ids.get(facility_id),
-                )
-
-                # Capture claim IDs after filtering claims.csv
-                if table_name == "claims.csv" and len(subset) > 0:
-                    per_facility_claim_ids[facility_id] = set(subset["Id"].values)
-
-                data_handler.write_facility_table(
-                    subset, facilities_dir, facility_id, table_name
-                )
-
-            del source_df
             progress.update(task_b, advance=1)
 
         del per_facility_claim_ids

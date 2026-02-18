@@ -229,20 +229,21 @@ def main():
     print(f"  Gradient checkpointing: {args.gradient_checkpointing}")
     print("  Best model metric: F1")
 
-    # Train
+    # Train and evaluate in a single MLflow run so all metrics appear together
     print("\nStarting training...")
-    train_result = trainer.train()
+    with mlflow.start_run():
+        train_result = trainer.train()
 
-    print("\nTraining complete!")
-    print(f"  Total steps: {train_result.global_step}")
-    print(f"  Final training loss: {train_result.training_loss:.4f}")
+        print("\nTraining complete!")
+        print(f"  Total steps: {train_result.global_step}")
+        print(f"  Final training loss: {train_result.training_loss:.4f}")
 
-    # Final eval on eval set
-    print("\nFinal evaluation on eval set:")
-    eval_metrics = trainer.evaluate()
-    for k, v in sorted(eval_metrics.items()):
-        if isinstance(v, float):
-            print(f"  {k}: {v:.4f}")
+        # Final eval on eval set (logged to the same MLflow run)
+        print("\nFinal evaluation on eval set:")
+        eval_metrics = trainer.evaluate()
+        for k, v in sorted(eval_metrics.items()):
+            if isinstance(v, float):
+                print(f"  {k}: {v:.4f}")
 
     # Save adapter locally
     adapter_path = f"{output_dir}/best-adapter"

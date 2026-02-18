@@ -25,12 +25,14 @@ TIMEOUT=1800  # 30 minutes
 STALL_TIMEOUT=180  # 3 minutes — if container hasn't started, assume image pull stalled
 MAX_RETRIES=3
 GPU_TYPE="NVIDIA GeForce RTX 4090"
+BATCH_SIZE=""
 LOCAL_MODE=false
 
 # --- Parse args ---
 while [[ "${1:-}" == --* ]]; do
     case "$1" in
         --gpu-type) GPU_TYPE="$2"; shift 2 ;;
+        --batch-size) BATCH_SIZE="$2"; shift 2 ;;
         --local) LOCAL_MODE=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
@@ -54,10 +56,14 @@ if [[ "$LOCAL_MODE" == "true" ]]; then
     echo "Input: $INPUT_FILE"
     mkdir -p "$(dirname "$OUTPUT_FILE")"
 
+    LOCAL_BATCH_ARGS=""
+    if [[ -n "$BATCH_SIZE" ]]; then
+        LOCAL_BATCH_ARGS="--batch-size $BATCH_SIZE"
+    fi
     if ! python3 "$SCRIPT_DIR/infer_classifier.py" \
         --input-file "$INPUT_FILE" \
         --output-file "$OUTPUT_FILE" \
-        --no-quantize; then
+        --no-quantize $LOCAL_BATCH_ARGS; then
         echo "ERROR: Local inference failed."
         exit 1
     fi
@@ -102,7 +108,11 @@ print(f'  Uploaded {len(df)} rows')
 fi
 
 # --- Steps 2-3: Launch pod and poll (with retry on stall/failure) ---
-LAUNCH_CMD="\"$SCRIPT_DIR/launch_pod.sh\" infer --gpu-type \"$GPU_TYPE\" --hf-input \"$HF_INPUT_REPO\" --hf-output \"$HF_OUTPUT_REPO\""
+BATCH_SIZE_FLAG=""
+if [[ -n "$BATCH_SIZE" ]]; then
+    BATCH_SIZE_FLAG="--batch-size $BATCH_SIZE"
+fi
+LAUNCH_CMD="\"$SCRIPT_DIR/launch_pod.sh\" infer --gpu-type \"$GPU_TYPE\" --hf-input \"$HF_INPUT_REPO\" --hf-output \"$HF_OUTPUT_REPO\" $BATCH_SIZE_FLAG"
 poll_pod "$LAUNCH_CMD" "$TIMEOUT" "$STALL_TIMEOUT" "$MAX_RETRIES" "$POLL_INTERVAL"
 
 # --- Step 4: Download predictions from HF Hub ---

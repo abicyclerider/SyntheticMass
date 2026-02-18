@@ -47,6 +47,16 @@ MODEL_ID = "abicyclerider/medgemma-4b-entity-resolution-text-only"
 DATASET_REPO = "abicyclerider/entity-resolution-pairs"
 
 
+def _flash_attn_available() -> bool:
+    """Check if Flash Attention 2 is installed and usable."""
+    try:
+        import flash_attn  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
 def load_model(model_id=MODEL_ID, quantize_4bit=True, device="cuda"):
     """Load the merged text-only classifier. Returns (model, tokenizer)."""
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -57,6 +67,14 @@ def load_model(model_id=MODEL_ID, quantize_4bit=True, device="cuda"):
         tokenizer.pad_token = tokenizer.eos_token
 
     load_kwargs = {}
+
+    # Enable Flash Attention 2 on CUDA when available
+    if device == "cuda" and _flash_attn_available():
+        print("Flash Attention 2 enabled.")
+        load_kwargs["attn_implementation"] = "flash_attention_2"
+    elif device == "cuda":
+        print("Flash Attention 2 not installed — using default attention.")
+
     if quantize_4bit and device == "cuda":
         from transformers import BitsAndBytesConfig
 

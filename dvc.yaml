@@ -14,22 +14,10 @@ stages:
     - .build/synthea.iid:
         cache: false
 
-  build_augmentation:
-    cmd: >-
-      mkdir -p .build &&
-      docker build -t augmentation -t augmentation:$(git rev-parse --short HEAD) augmentation/ &&
-      docker image inspect augmentation --format '{{.Id}}' > .build/augmentation.iid
-    deps:
-    - augmentation/Dockerfile
-    - augmentation/requirements-runtime.txt
-    - augmentation/cli/csv_to_parquet.py
-    - augmentation/cli/segment.py
-    - augmentation/cli/inject_errors.py
-    - augmentation/core/streaming.py
-    - augmentation/config/default_config.yaml
-    outs:
-    - .build/augmentation.iid:
-        cache: false
+  # NOTE: build_augmentation removed — each augmentation stage now builds its
+  # own Docker image inline (cached, ~1s) and depends only on the source files
+  # it actually uses. This avoids re-running csv_to_parquet when only
+  # inject_errors.py changes.
 
   build_entity_resolution:
     cmd: >-
@@ -84,6 +72,7 @@ stages:
   csv_to_parquet:
     cmd: >-
       rm -rf synthea_runner/output/synthea_parquet &&
+      docker build -t augmentation augmentation/ &&
       docker run --rm --entrypoint python
       -v $(pwd)/synthea_runner/output/synthea_raw/csv:/data/input:ro
       -v $(pwd)/synthea_runner/output/synthea_parquet:/data/output
@@ -92,7 +81,10 @@ stages:
       --input /data/input --output /data/output
     deps:
     - synthea_runner/output/synthea_raw/csv
-    - .build/augmentation.iid
+    - augmentation/Dockerfile
+    - augmentation/requirements-runtime.txt
+    - augmentation/cli/csv_to_parquet.py
+    - augmentation/core/streaming.py
     outs:
     - synthea_runner/output/synthea_parquet:
         cache: false
@@ -100,6 +92,7 @@ stages:
   segment:
     cmd: >-
       rm -rf output/segmented &&
+      docker build -t augmentation augmentation/ &&
       docker run --rm --entrypoint python
       -v $(pwd)/synthea_runner/output/synthea_parquet:/data/input:ro
       -v $(pwd)/output/segmented:/data/output
@@ -111,7 +104,10 @@ stages:
     - augment.assignment_seed
     deps:
     - synthea_runner/output/synthea_parquet
-    - .build/augmentation.iid
+    - augmentation/Dockerfile
+    - augmentation/requirements-runtime.txt
+    - augmentation/cli/segment.py
+    - augmentation/core/streaming.py
     outs:
     - output/segmented:
         cache: false
@@ -119,6 +115,7 @@ stages:
   inject_errors:
     cmd: >-
       rm -rf output/augmented &&
+      docker build -t augmentation augmentation/ &&
       docker run --rm --entrypoint python
       -v $(pwd)/output/segmented:/data/input:ro
       -v $(pwd)/output/augmented:/data/output
@@ -130,7 +127,11 @@ stages:
     - augment.error_seed
     deps:
     - output/segmented
-    - .build/augmentation.iid
+    - augmentation/Dockerfile
+    - augmentation/requirements-runtime.txt
+    - augmentation/cli/inject_errors.py
+    - augmentation/core/
+    - augmentation/config/default_config.yaml
     outs:
     - output/augmented:
         cache: false
@@ -229,6 +230,7 @@ stages:
   csv_to_parquet_training:
     cmd: >-
       rm -rf output/training/synthea_parquet &&
+      docker build -t augmentation augmentation/ &&
       docker run --rm --entrypoint python
       -v $(pwd)/output/training/synthea_raw/csv:/data/input:ro
       -v $(pwd)/output/training/synthea_parquet:/data/output
@@ -237,7 +239,10 @@ stages:
       --input /data/input --output /data/output
     deps:
     - output/training/synthea_raw/csv
-    - .build/augmentation.iid
+    - augmentation/Dockerfile
+    - augmentation/requirements-runtime.txt
+    - augmentation/cli/csv_to_parquet.py
+    - augmentation/core/streaming.py
     outs:
     - output/training/synthea_parquet:
         cache: false
@@ -245,6 +250,7 @@ stages:
   segment_training:
     cmd: >-
       rm -rf output/training/segmented &&
+      docker build -t augmentation augmentation/ &&
       docker run --rm --entrypoint python
       -v $(pwd)/output/training/synthea_parquet:/data/input:ro
       -v $(pwd)/output/training/segmented:/data/output
@@ -256,7 +262,10 @@ stages:
     - augment_training.assignment_seed
     deps:
     - output/training/synthea_parquet
-    - .build/augmentation.iid
+    - augmentation/Dockerfile
+    - augmentation/requirements-runtime.txt
+    - augmentation/cli/segment.py
+    - augmentation/core/streaming.py
     outs:
     - output/training/segmented:
         cache: false
@@ -264,6 +273,7 @@ stages:
   inject_errors_training:
     cmd: >-
       rm -rf output/training/augmented &&
+      docker build -t augmentation augmentation/ &&
       docker run --rm --entrypoint python
       -v $(pwd)/output/training/segmented:/data/input:ro
       -v $(pwd)/output/training/augmented:/data/output
@@ -275,7 +285,11 @@ stages:
     - augment_training.error_seed
     deps:
     - output/training/segmented
-    - .build/augmentation.iid
+    - augmentation/Dockerfile
+    - augmentation/requirements-runtime.txt
+    - augmentation/cli/inject_errors.py
+    - augmentation/core/
+    - augmentation/config/default_config.yaml
     outs:
     - output/training/augmented:
         cache: false

@@ -12,12 +12,17 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def load_facility_patients(run_dir: str) -> pd.DataFrame:
+def load_facility_patients(
+    run_dir: str,
+    columns: list[str] | None = None,
+) -> pd.DataFrame:
     """
     Load patient records from all facility CSVs into a single DataFrame.
 
     Args:
         run_dir: Path to augmentation run directory (e.g., output/augmented/run_20260202_122731)
+        columns: Optional list of columns to read from parquet (reduces memory).
+                 When provided, only these columns are loaded.
 
     Returns:
         DataFrame with all patient records, including facility_id column
@@ -41,7 +46,7 @@ def load_facility_patients(run_dir: str) -> pd.DataFrame:
             logger.warning(f"No patients.parquet found in {facility_id}")
             continue
 
-        df = pd.read_parquet(parquet_file)
+        df = pd.read_parquet(parquet_file, columns=columns)
         df["facility_id"] = facility_id
         all_patients.append(df)
         logger.debug(f"Loaded {len(df)} patients from {facility_id}")

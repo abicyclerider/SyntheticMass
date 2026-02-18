@@ -40,7 +40,7 @@ from shared.summarize import (
     summarize_diff_friendly_from_records,
 )
 
-# Only load the record types the summarizer actually uses
+# Only load the record types and columns the summarizer actually uses
 SUMMARIZER_RECORD_TYPES = [
     "conditions",
     "medications",
@@ -48,6 +48,13 @@ SUMMARIZER_RECORD_TYPES = [
     "observations",
     "procedures",
 ]
+SUMMARIZER_COLUMNS = {
+    "conditions": ["PATIENT", "START", "STOP", "DESCRIPTION"],
+    "medications": ["PATIENT", "DESCRIPTION", "START", "STOP"],
+    "allergies": ["PATIENT", "DESCRIPTION"],
+    "observations": ["PATIENT", "DATE", "DESCRIPTION", "VALUE", "UNITS"],
+    "procedures": ["PATIENT", "START", "DESCRIPTION"],
+}
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +265,7 @@ def main(augmented_dir, output_dir, config):
     # --- Step 8: Gray zone pair text generation ---
     logger.info("Loading medical records for gray zone text generation...")
     medical_records = load_medical_records(
-        str(run_dir), record_types=SUMMARIZER_RECORD_TYPES
+        str(run_dir), record_types=SUMMARIZER_RECORD_TYPES, columns=SUMMARIZER_COLUMNS
     )
 
     gray_zone_df = generate_gray_zone_texts(gray_zone, patients_df, medical_records)

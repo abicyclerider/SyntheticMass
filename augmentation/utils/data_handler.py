@@ -166,30 +166,6 @@ class DataHandler:
         return pd.read_parquet(parquet_path)
 
     @classmethod
-    def read_all_facility_tables(
-        cls,
-        output_dir: Path,
-        facility_id: int,
-    ) -> Dict[str, pd.DataFrame]:
-        """
-        Read all Parquet files for one facility into a dict.
-
-        Args:
-            output_dir: Base output directory (parent of facility_NNN dirs)
-            facility_id: Facility identifier
-
-        Returns:
-            Dictionary mapping table name to DataFrame
-        """
-        facility_dir = output_dir / f"facility_{facility_id:03d}"
-        result = {}
-        for table_name in cls.SYNTHEA_TABLES:
-            parquet_path = facility_dir / f"{table_name}.parquet"
-            if parquet_path.exists():
-                result[table_name] = pd.read_parquet(parquet_path)
-        return result
-
-    @classmethod
     def write_facility_data(
         cls,
         facility_tables: Dict[str, pd.DataFrame],

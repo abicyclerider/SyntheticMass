@@ -24,17 +24,18 @@ error_injection:
   # 100% of patient records will have at least one error
   global_error_rate: 1.0
 
-  # 20% chance of multiple errors (given at least one error)
-  multiple_errors_probability: 0.5
+  # 70% chance of multiple errors (given at least one error)
+  multiple_errors_probability: 0.7
 
   # Relative weights for error types
   # These will be refined based on research findings
   error_type_weights:
-    name_variation: 0.30      # Nicknames, typos, maiden names
-    address_error: 0.25       # Abbreviations, apartment format, typos
-    date_variation: 0.15      # Off-by-one, format variations
+    name_variation: 0.25      # Nicknames, typos, maiden names
+    address_error: 0.15       # Abbreviations, apartment format, full change
+    date_variation: 0.10      # Off-by-one, digit transposition
     ssn_error: 0.10           # Digit transposition, format
-    formatting_error: 0.20    # Capitalization, whitespace
+    formatting_error: 0.10    # Capitalization, whitespace (mostly neutralized)
+    missing_data: 0.30        # Field set to empty/null
 
 # Paths (will be set via CLI or programmatically)
 paths:

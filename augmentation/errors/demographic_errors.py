@@ -262,3 +262,147 @@ class MaidenNameUsage(BaseError):
             return maiden_name
 
         return value
+
+
+class MultiCharacterNameTypo(BaseError):
+    """Introduce 2-3 character changes in names.
+
+    More aggressive than NameTypo (single char). Drops Jaro-Winkler
+    below 0.80, pushing name fields to gamma 0 in Splink scoring.
+    """
+
+    def get_applicable_fields(self) -> List[str]:
+        return ["FIRST", "LAST"]
+
+    def get_error_type_name(self) -> str:
+        return "multi_character_name_typo"
+
+    def apply(self, value: Any, context: Dict) -> Any:
+        if not self.should_apply(value):
+            return value
+
+        name = str(value)
+        if len(name) < 4:
+            return value
+
+        num_changes = int(self.rng.integers(2, 4))  # 2 or 3 changes
+        num_changes = min(num_changes, len(name) - 1)
+
+        # Pick distinct positions (avoid first char to preserve JW prefix)
+        positions = self.rng.choice(
+            range(1, len(name)), size=num_changes, replace=False
+        )
+
+        chars = list(name)
+        for pos in positions:
+            if self.rng.random() < 0.5:
+                chars[pos] = self._get_keyboard_adjacent(chars[pos])
+            else:
+                chars[pos] = self._select_random_character(exclude=chars[pos])
+
+        return "".join(chars)
+
+
+class DateDigitTransposition(BaseError):
+    """Swap date components to create large date discrepancies.
+
+    Strategy 1: Swap month and day (when day <= 12).
+    Strategy 2: Swap year digits (e.g. 1985 → 1958) as fallback.
+    """
+
+    def get_applicable_fields(self) -> List[str]:
+        return ["BIRTHDATE"]
+
+    def get_error_type_name(self) -> str:
+        return "date_digit_transposition"
+
+    def apply(self, value: Any, context: Dict) -> Any:
+        if not self.should_apply(value):
+            return value
+
+        if not hasattr(value, "year"):
+            return value
+
+        try:
+            # Strategy 1: swap month/day when day <= 12
+            if value.day <= 12 and value.day != value.month:
+                return value.replace(month=value.day, day=value.month)
+
+            # Strategy 2: swap last two digits of year (e.g. 1985 → 1958)
+            year_str = str(value.year)
+            if len(year_str) == 4:
+                swapped = year_str[:2] + year_str[3] + year_str[2]
+                new_year = int(swapped)
+                if new_year != value.year and 1900 <= new_year <= 2025:
+                    return value.replace(year=new_year)
+        except (ValueError, OverflowError):
+            return value
+
+        return value
+
+
+class FullAddressChange(BaseError):
+    """Replace address entirely, simulating a patient move.
+
+    Generates a synthetic address from pools of street numbers, names,
+    and types. City/zip may still match the original → mixed evidence.
+    """
+
+    STREET_NAMES = [
+        "OAK",
+        "MAPLE",
+        "CEDAR",
+        "ELM",
+        "PINE",
+        "WALNUT",
+        "BIRCH",
+        "WILLOW",
+        "CHERRY",
+        "SPRUCE",
+        "HIGHLAND",
+        "WASHINGTON",
+        "LINCOLN",
+        "PARK",
+        "LAKE",
+        "RIVER",
+        "HILL",
+        "MEADOW",
+        "FOREST",
+        "SPRING",
+    ]
+
+    STREET_TYPES = [
+        "STREET",
+        "AVENUE",
+        "DRIVE",
+        "ROAD",
+        "LANE",
+        "COURT",
+        "PLACE",
+        "BOULEVARD",
+        "WAY",
+        "CIRCLE",
+    ]
+
+    def get_applicable_fields(self) -> List[str]:
+        return ["ADDRESS"]
+
+    def get_error_type_name(self) -> str:
+        return "full_address_change"
+
+    def apply(self, value: Any, context: Dict) -> Any:
+        if not self.should_apply(value):
+            return value
+
+        number = int(self.rng.integers(1, 9999))
+        name = self.rng.choice(self.STREET_NAMES)
+        stype = self.rng.choice(self.STREET_TYPES)
+
+        new_address = f"{number} {name} {stype}"
+
+        # Avoid returning the same address by coincidence
+        if new_address == str(value).upper():
+            number = int(self.rng.integers(1, 9999))
+            new_address = f"{number} {name} {stype}"
+
+        return new_address

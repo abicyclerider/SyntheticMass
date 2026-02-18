@@ -10,10 +10,14 @@ from ..errors import (
     AddressAbbreviation,
     ApartmentFormatVariation,
     CapitalizationError,
+    DateDigitTransposition,
     DateOffByOne,
     ExtraWhitespace,
+    FullAddressChange,
     LeadingTrailingWhitespace,
     MaidenNameUsage,
+    MissingFieldValue,
+    MultiCharacterNameTypo,
     NameTypo,
     NicknameSubstitution,
     SpecialCharacterVariation,
@@ -39,13 +43,16 @@ class ErrorInjector:
             NicknameSubstitution,
             NameTypo,
             MaidenNameUsage,
+            MultiCharacterNameTypo,
         ],
         "address_error": [
             AddressAbbreviation,
             ApartmentFormatVariation,
+            FullAddressChange,
         ],
         "date_variation": [
             DateOffByOne,
+            DateDigitTransposition,
         ],
         "ssn_error": [
             SSNTransposition,
@@ -57,6 +64,9 @@ class ErrorInjector:
             ExtraWhitespace,
             LeadingTrailingWhitespace,
             SpecialCharacterVariation,
+        ],
+        "missing_data": [
+            MissingFieldValue,
         ],
     }
 

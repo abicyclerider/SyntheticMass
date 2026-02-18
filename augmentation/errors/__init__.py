@@ -4,8 +4,11 @@ from .base_error import BaseError
 from .demographic_errors import (
     AddressAbbreviation,
     ApartmentFormatVariation,
+    DateDigitTransposition,
     DateOffByOne,
+    FullAddressChange,
     MaidenNameUsage,
+    MultiCharacterNameTypo,
     NameTypo,
     NicknameSubstitution,
 )
@@ -23,15 +26,19 @@ from .identifier_errors import (
     SSNFormatVariation,
     SSNTransposition,
 )
+from .missing_data_errors import MissingFieldValue
 
 __all__ = [
     "BaseError",
     # Demographic
     "NicknameSubstitution",
     "NameTypo",
+    "MultiCharacterNameTypo",
     "AddressAbbreviation",
     "ApartmentFormatVariation",
+    "FullAddressChange",
     "DateOffByOne",
+    "DateDigitTransposition",
     "MaidenNameUsage",
     # Identifier
     "SSNTransposition",
@@ -45,4 +52,6 @@ __all__ = [
     "MissingWhitespace",
     "LeadingTrailingWhitespace",
     "SpecialCharacterVariation",
+    # Missing data
+    "MissingFieldValue",
 ]

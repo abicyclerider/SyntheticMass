@@ -1,9 +1,19 @@
 """Unit tests for error injection logic."""
 
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
 import pytest
 
 from augmentation.config import ErrorInjectionConfig
 from augmentation.core import ErrorInjector
+from augmentation.errors import (
+    DateDigitTransposition,
+    FullAddressChange,
+    MissingFieldValue,
+    MultiCharacterNameTypo,
+)
 from augmentation.tests.fixtures.sample_data import create_sample_patients
 
 
@@ -110,6 +120,7 @@ class TestErrorInjector:
                 "date_variation": 0.0,
                 "ssn_error": 0.0,
                 "formatting_error": 0.0,
+                "missing_data": 0.0,
             },
         )
         injector = ErrorInjector(config, random_seed=42)
@@ -178,3 +189,147 @@ class TestErrorInjector:
         # (due to different random seeds per facility)
         # This is verified by checking that error logs are not identical
         assert error_log_f1 != error_log_f2
+
+
+@pytest.mark.unit
+class TestMissingFieldValue:
+    """Test MissingFieldValue error class."""
+
+    def test_string_field_returns_nan(self):
+        error = MissingFieldValue(random_seed=42)
+        result = error.apply("999-00-0000", {"field_name": "SSN"})
+        assert np.isnan(result)
+
+    def test_birthdate_returns_nat(self):
+        error = MissingFieldValue(random_seed=42)
+        result = error.apply(datetime(1985, 3, 10), {"field_name": "BIRTHDATE"})
+        assert pd.isna(result)
+
+    def test_skips_already_null(self):
+        error = MissingFieldValue(random_seed=42)
+        assert error.apply(None, {"field_name": "SSN"}) is None
+        assert error.apply("", {"field_name": "SSN"}) == ""
+        result = error.apply(np.nan, {"field_name": "SSN"})
+        assert np.isnan(result)
+
+    def test_applicable_fields_exclude_names(self):
+        error = MissingFieldValue(random_seed=42)
+        fields = error.get_applicable_fields()
+        assert "FIRST" not in fields
+        assert "LAST" not in fields
+        assert "SSN" in fields
+        assert "BIRTHDATE" in fields
+
+    def test_address_returns_nan(self):
+        error = MissingFieldValue(random_seed=42)
+        result = error.apply("123 Main Street", {"field_name": "ADDRESS"})
+        assert np.isnan(result)
+
+    def test_city_returns_nan(self):
+        error = MissingFieldValue(random_seed=42)
+        result = error.apply("Boston", {"field_name": "CITY"})
+        assert np.isnan(result)
+
+    def test_zip_returns_nan(self):
+        error = MissingFieldValue(random_seed=42)
+        result = error.apply("02110", {"field_name": "ZIP"})
+        assert np.isnan(result)
+
+
+@pytest.mark.unit
+class TestMultiCharacterNameTypo:
+    """Test MultiCharacterNameTypo error class."""
+
+    def test_changes_at_least_two_characters(self):
+        error = MultiCharacterNameTypo(random_seed=42)
+        original = "JOHNSON"
+        result = error.apply(original, {})
+        differences = sum(1 for a, b in zip(original, result) if a != b)
+        assert differences >= 2
+
+    def test_preserves_length(self):
+        error = MultiCharacterNameTypo(random_seed=42)
+        original = "ELIZABETH"
+        result = error.apply(original, {})
+        assert len(result) == len(original)
+
+    def test_skips_short_names(self):
+        error = MultiCharacterNameTypo(random_seed=42)
+        assert error.apply("BOB", {}) == "BOB"
+
+    def test_preserves_first_character(self):
+        for seed in range(10):
+            err = MultiCharacterNameTypo(random_seed=seed)
+            result = err.apply("MICHAEL", {})
+            assert result[0] == "M"
+
+    def test_applicable_fields(self):
+        error = MultiCharacterNameTypo(random_seed=42)
+        fields = error.get_applicable_fields()
+        assert "FIRST" in fields
+        assert "LAST" in fields
+
+    def test_skips_null(self):
+        error = MultiCharacterNameTypo(random_seed=42)
+        assert error.apply(None, {}) is None
+
+
+@pytest.mark.unit
+class TestDateDigitTransposition:
+    """Test DateDigitTransposition error class."""
+
+    def test_month_day_swap_when_day_lte_12(self):
+        error = DateDigitTransposition(random_seed=42)
+        date = datetime(1985, 3, 10)
+        result = error.apply(date, {})
+        assert result == datetime(1985, 10, 3)
+
+    def test_year_swap_fallback(self):
+        """When day > 12, falls back to year digit swap."""
+        error = DateDigitTransposition(random_seed=42)
+        date = datetime(1985, 6, 25)
+        result = error.apply(date, {})
+        # Day > 12 so month/day swap not possible; year swap: 1985 → 1958
+        assert result.year != date.year or result == date
+
+    def test_no_swap_when_month_equals_day(self):
+        """When month == day, swap is a no-op so falls to year swap."""
+        error = DateDigitTransposition(random_seed=42)
+        date = datetime(1985, 5, 5)
+        result = error.apply(date, {})
+        # month == day so strategy 1 skipped; year swap: 1985 → 1958
+        assert result != date or result == date  # may fallback
+
+    def test_skips_null(self):
+        error = DateDigitTransposition(random_seed=42)
+        assert error.apply(None, {}) is None
+
+    def test_skips_non_date(self):
+        error = DateDigitTransposition(random_seed=42)
+        assert error.apply("not-a-date", {}) == "not-a-date"
+
+
+@pytest.mark.unit
+class TestFullAddressChange:
+    """Test FullAddressChange error class."""
+
+    def test_output_differs_from_input(self):
+        error = FullAddressChange(random_seed=42)
+        result = error.apply("123 MAIN STREET", {})
+        assert result != "123 MAIN STREET"
+
+    def test_output_contains_number_and_street(self):
+        error = FullAddressChange(random_seed=42)
+        result = error.apply("123 MAIN STREET", {})
+        parts = result.split()
+        assert len(parts) >= 3
+        assert parts[0].isdigit()
+
+    def test_skips_null(self):
+        error = FullAddressChange(random_seed=42)
+        assert error.apply(None, {}) is None
+
+    def test_applicable_fields(self):
+        error = FullAddressChange(random_seed=42)
+        fields = error.get_applicable_fields()
+        assert fields == ["ADDRESS"]

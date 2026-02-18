@@ -65,7 +65,7 @@ class ErrorInjectionConfig(BaseModel):
     )
 
     multiple_errors_probability: float = Field(
-        default=0.20,
+        default=0.70,
         ge=0.0,
         le=1.0,
         description="Probability of multiple errors given at least one error",
@@ -73,11 +73,12 @@ class ErrorInjectionConfig(BaseModel):
 
     error_type_weights: Dict[str, float] = Field(
         default={
-            "name_variation": 0.30,
-            "address_error": 0.25,
-            "date_variation": 0.15,
+            "name_variation": 0.25,
+            "address_error": 0.15,
+            "date_variation": 0.10,
             "ssn_error": 0.10,
-            "formatting_error": 0.20,
+            "formatting_error": 0.10,
+            "missing_data": 0.30,
         },
         description="Relative weights for different error types",
     )

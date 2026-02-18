@@ -34,8 +34,15 @@ from shared.ground_truth import (
 from shared.medical_records import load_medical_records
 from shared.summarize import INSTRUCTION, summarize_diff_friendly_from_records
 
-# Only load the record types the summarizer actually uses
+# Only load the record types and columns the summarizer actually uses
 SUMMARIZER_RECORD_TYPES = ["conditions", "medications", "allergies", "observations", "procedures"]
+SUMMARIZER_COLUMNS = {
+    "conditions": ["PATIENT", "START", "STOP", "DESCRIPTION"],
+    "medications": ["PATIENT", "DESCRIPTION", "START", "STOP"],
+    "allergies": ["PATIENT", "DESCRIPTION"],
+    "observations": ["PATIENT", "DATE", "DESCRIPTION", "VALUE", "UNITS"],
+    "procedures": ["PATIENT", "START", "DESCRIPTION"],
+}
 
 MODEL_ID = "google/gemma-3-1b-it"
 DATASET_REPO = "abicyclerider/entity-resolution-pairs"
@@ -143,7 +150,9 @@ def main():
 
     # Load medical records and build summaries
     print("\nLoading medical records...")
-    medical_records = load_medical_records(RUN_DIR, record_types=SUMMARIZER_RECORD_TYPES)
+    medical_records = load_medical_records(
+        RUN_DIR, record_types=SUMMARIZER_RECORD_TYPES, columns=SUMMARIZER_COLUMNS
+    )
 
     # Pre-index medical records by (PATIENT, facility_id) for O(1) lookups
     print("Indexing medical records...")

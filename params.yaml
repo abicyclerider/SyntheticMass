@@ -11,7 +11,7 @@ resolve:
   auto_reject_probability: 0.05
 
 generate_training:
-  population: 100000
+  population: 10000
   seed: 12345
 
 augment_training:

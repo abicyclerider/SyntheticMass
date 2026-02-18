@@ -29,7 +29,9 @@ CLINICAL_RECORD_TYPES = [
 
 
 def load_medical_records(
-    run_dir: str, record_types: list[str] | None = None
+    run_dir: str,
+    record_types: list[str] | None = None,
+    columns: dict[str, list[str]] | None = None,
 ) -> dict[str, pd.DataFrame]:
     """
     Load clinical record types from all facilities.
@@ -40,6 +42,9 @@ def load_medical_records(
     Args:
         run_dir: Path to augmentation run directory
         record_types: Record types to load (default: all CLINICAL_RECORD_TYPES)
+        columns: Optional per-record-type column filter, e.g.
+            {"conditions": ["PATIENT", "START", "STOP", "DESCRIPTION"]}.
+            When provided, only these columns are read from parquet (much less memory).
 
     Returns:
         Dictionary mapping record type name to DataFrame with all facilities combined
@@ -66,7 +71,8 @@ def load_medical_records(
             if not parquet_path.exists():
                 continue
 
-            df = pd.read_parquet(parquet_path)
+            cols = columns.get(record_type) if columns else None
+            df = pd.read_parquet(parquet_path, columns=cols)
             df["facility_id"] = facility_dir.name
             frames.append(df)
 

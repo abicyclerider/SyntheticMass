@@ -121,7 +121,7 @@ check_hub_updated() {
 import os
 from huggingface_hub import repo_info
 try:
-    info = repo_info(os.environ['REPO'], token=os.environ['HF_TOKEN'])
+    info = repo_info(os.environ['REPO'], repo_type='dataset', token=os.environ['HF_TOKEN'])
     print(info.last_modified.isoformat())
 except Exception:
     print('NONE')
@@ -150,7 +150,7 @@ get_hub_timestamp() {
 import os
 from huggingface_hub import repo_info
 try:
-    info = repo_info(os.environ['REPO'], token=os.environ['HF_TOKEN'])
+    info = repo_info(os.environ['REPO'], repo_type='dataset', token=os.environ['HF_TOKEN'])
     print(info.last_modified.isoformat())
 except Exception:
     print('NONE')

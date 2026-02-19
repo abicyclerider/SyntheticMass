@@ -4,12 +4,12 @@
 # Not executable on its own.
 
 # --- Globals set by callers or by these functions ---
-# POD_ID        - current pod ID (set by caller, updated by poll_pod on retry)
-# CLEANUP_DONE  - guard against double cleanup
+# POD_ID        - current pod ID (set by launch_pod_with_retry)
 # RUNPOD_API_KEY - set by read_credentials
 # HF_TOKEN       - set by read_credentials
 
 _HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE_DIR="$_HELPERS_DIR/.state"
 
 # Read HF_TOKEN from .env and RUNPOD_API_KEY from ~/.runpod/config.toml.
 # Sets: HF_TOKEN, RUNPOD_API_KEY
@@ -67,211 +67,94 @@ except Exception:
 " 2>/dev/null || echo "PARSE_ERROR -1"
 }
 
-# Set trap on EXIT/INT/TERM/HUP to terminate the current pod.
-# Uses global: POD_ID, CLEANUP_DONE
-setup_pod_cleanup() {
-    CLEANUP_DONE=false
-    trap '_cleanup_pod' EXIT INT TERM HUP
-}
-
-_cleanup_pod() {
-    if [[ "$CLEANUP_DONE" == "true" ]]; then
-        return
-    fi
-    CLEANUP_DONE=true
-
-    if [[ -n "${POD_ID:-}" ]]; then
-        echo ""
-        echo "=== Cleanup: Terminating pod $POD_ID ==="
-        if ~/bin/runpodctl remove pod "$POD_ID" 2>/dev/null; then
-            echo "  Pod $POD_ID terminated."
-        else
-            echo "  WARNING: Failed to terminate pod $POD_ID."
-            echo "  Manually terminate: runpodctl remove pod $POD_ID"
-        fi
-        POD_ID=""
-    fi
-}
-
-# Terminate current pod (for retries, not final cleanup).
-# Uses global: POD_ID
-terminate_current_pod() {
-    if [[ -n "${POD_ID:-}" ]]; then
-        echo "  Terminating pod $POD_ID..."
-        ~/bin/runpodctl remove pod "$POD_ID" 2>/dev/null || true
-        POD_ID=""
-    fi
-}
-
-# Main polling loop with stall detection and retry.
-# Args: $1=launch_cmd (command to create a new pod, must print "Pod created: <id>")
-#       $2=timeout  $3=stall_timeout  $4=max_retries  $5=poll_interval
-# Side effects: may create new pods (updates global POD_ID)
+# Launch a pod with retry on GPU unavailability.
+# Args: $1=launch_cmd (must print "Pod created: <id>" on success)
+#       $2=max_retries (default 3)
+# Sets: POD_ID global
 # Returns: 0 on success, exits 1 on failure
-poll_pod() {
+launch_pod_with_retry() {
     local launch_cmd="$1"
-    local timeout="${2:-1800}"
-    local stall_timeout="${3:-180}"
-    local max_retries="${4:-3}"
-    local poll_interval="${5:-30}"
-
-    local pod_succeeded=false
+    local max_retries="${2:-3}"
 
     for attempt in $(seq 1 "$max_retries"); do
-        # If no pod yet (first call or retry), launch one
-        if [[ -z "${POD_ID:-}" ]]; then
-            echo ""
-            echo "=== Launch pod (attempt $attempt/$max_retries) ==="
-            local pod_output
-            if ! pod_output=$(eval "$launch_cmd" 2>&1); then
-                echo "$pod_output"
-                echo ""
-                echo "ERROR: Failed to create pod."
-                if echo "$pod_output" | grep -qi "no gpu\|no available\|insufficient\|out of stock"; then
-                    echo "  GPU type appears to be unavailable on RunPod."
-                else
-                    echo "  GPU type may not be available, or there may be an API issue."
-                fi
-                echo "  Check: https://www.runpod.io/console/gpu-cloud"
-                if [[ $attempt -lt $max_retries ]]; then
-                    echo "  Retrying in 30s..."
-                    sleep 30
-                    continue
-                fi
-                echo "  All $max_retries attempts failed."
-                exit 1
-            fi
+        echo ""
+        echo "=== Launch pod (attempt $attempt/$max_retries) ==="
+        local pod_output
+        if pod_output=$(eval "$launch_cmd" 2>&1); then
             echo "$pod_output"
-
             POD_ID=$(echo "$pod_output" | sed -n 's/^Pod created: //p')
             if [[ -z "$POD_ID" ]]; then
                 echo "ERROR: Failed to parse pod ID from launch output."
                 exit 1
             fi
-        fi
-
-        echo ""
-        echo "=== Polling pod status (stall: ${stall_timeout}s, timeout: ${timeout}s) ==="
-        local elapsed=0
-        local stalled=false
-        local poll_errors=0
-        local prev_uptime=-1
-        local ever_started=false
-        local crash_count=0
-
-        while true; do
-            read -r pod_status runtime_up <<< "$(query_pod_status "$POD_ID")"
-
-            # Handle API query failures gracefully
-            if [[ "$pod_status" == "QUERY_FAILED" || "$pod_status" == "PARSE_ERROR" ]]; then
-                poll_errors=$((poll_errors + 1))
-                echo "  [${elapsed}s] WARNING: API query failed (${poll_errors} consecutive)"
-                if [[ $poll_errors -ge 5 ]]; then
-                    echo "  ERROR: Too many consecutive API failures. Aborting."
-                    exit 1
-                fi
-                sleep "$poll_interval"
-                elapsed=$((elapsed + poll_interval))
-                continue
-            fi
-            poll_errors=0
-
-            if [[ "$runtime_up" == "-1" ]]; then
-                echo "  [${elapsed}s] Status: $pod_status (container not started)"
-            else
-                echo "  [${elapsed}s] Status: $pod_status (uptime: ${runtime_up}s)"
-            fi
-
-            # Success: pod finished
-            if [[ "$pod_status" == "STOPPED" || "$pod_status" == "EXITED" ]]; then
-                echo "  Pod finished."
-                pod_succeeded=true
-                break
-            fi
-
-            # Track if container ever started
-            if [[ "$runtime_up" != "-1" ]]; then
-                ever_started=true
-            fi
-
-            # Uptime reset detection: if container was running for a while and
-            # uptime drops back to near-zero, the script completed and the
-            # container was restarted by RunPod. Treat as success.
-            if [[ "$runtime_up" != "-1" && "$prev_uptime" != "-1" \
-                  && $prev_uptime -ge $stall_timeout && $runtime_up -lt $prev_uptime ]]; then
-                echo "  Container uptime reset detected (${prev_uptime}s -> ${runtime_up}s) — script completed."
-                pod_succeeded=true
-                break
-            fi
-
-            # Crash loop detection: if uptime resets repeatedly but never
-            # reaches stall_timeout, the container is crash-looping.
-            if [[ "$runtime_up" != "-1" && "$prev_uptime" != "-1" \
-                  && $runtime_up -lt $prev_uptime && $prev_uptime -lt $stall_timeout ]]; then
-                crash_count=$((crash_count + 1))
-                echo "  WARNING: Container crashed (uptime ${prev_uptime}s -> ${runtime_up}s, crash #${crash_count})"
-                if [[ $crash_count -ge 3 ]]; then
-                    echo "  ERROR: Container crash-looping ($crash_count crashes). Check pod logs."
-                    terminate_current_pod
-                    stalled=true
-                    break
-                fi
-            fi
-
-            if [[ "$runtime_up" != "-1" ]]; then
-                prev_uptime=$runtime_up
-            fi
-
-            # Pod disappeared
-            if [[ "$pod_status" == "TERMINATED" ]]; then
-                echo "  WARNING: Pod was terminated unexpectedly."
-                POD_ID=""
-                if [[ $attempt -lt $max_retries ]]; then
-                    echo "  Will retry..."
-                    stalled=true
-                    break
-                fi
-                echo "  ERROR: Pod terminated on all attempts."
-                exit 1
-            fi
-
-            # Stall detection: only apply if container has NEVER started.
-            # If it started then crashed, rely on overall timeout instead.
-            if [[ "$ever_started" == "false" && "$runtime_up" == "-1" && $elapsed -ge $stall_timeout ]]; then
-                echo "  Pod stalled — container not started after ${stall_timeout}s (likely image pull issue)."
-                terminate_current_pod
-                stalled=true
-                break
-            fi
-
-            # Overall timeout
-            if [[ $elapsed -ge $timeout ]]; then
-                echo "  ERROR: Pod timed out after ${timeout}s."
-                echo "  Check logs: https://www.runpod.io/console/pods"
-                exit 1
-            fi
-
-            sleep "$poll_interval"
-            elapsed=$((elapsed + poll_interval))
-        done
-
-        if [[ "$stalled" == "true" ]]; then
-            if [[ $attempt -lt $max_retries ]]; then
-                echo "  Retrying with a new pod..."
-                continue
-            fi
-            echo "ERROR: Pod stalled/failed on all $max_retries attempts."
-            exit 1
-        fi
-
-        # Success
-        if [[ "$pod_succeeded" == "true" ]]; then
             return 0
+        fi
+
+        echo "$pod_output"
+        echo ""
+        echo "ERROR: Failed to create pod."
+        if echo "$pod_output" | grep -qi "no gpu\|no available\|insufficient\|out of stock"; then
+            echo "  GPU type appears to be unavailable on RunPod."
+        else
+            echo "  GPU type may not be available, or there may be an API issue."
+        fi
+        echo "  Check: https://www.runpod.io/console/gpu-cloud"
+        if [[ $attempt -lt $max_retries ]]; then
+            echo "  Retrying in 30s..."
+            sleep 30
         fi
     done
 
-    echo "ERROR: Pod did not complete successfully."
+    echo "  All $max_retries attempts failed."
     exit 1
+}
+
+# Check if a HF Hub repo was updated after a saved timestamp.
+# Args: $1=repo_id  $2=before_timestamp (ISO format or "NONE")
+# Returns: 0 if updated (or repo was new), 1 if not updated
+check_hub_updated() {
+    local repo_id="$1"
+    local before_ts="$2"
+
+    local after_ts
+    after_ts=$(HF_TOKEN="$HF_TOKEN" REPO="$repo_id" python3 -c "
+import os
+from huggingface_hub import repo_info
+try:
+    info = repo_info(os.environ['REPO'], token=os.environ['HF_TOKEN'])
+    print(info.last_modified.isoformat())
+except Exception:
+    print('NONE')
+")
+
+    if [[ "$before_ts" == "NONE" ]]; then
+        # Repo didn't exist before — any existence means it was updated
+        if [[ "$after_ts" != "NONE" ]]; then
+            return 0
+        fi
+        return 1
+    fi
+
+    if [[ "$after_ts" != "$before_ts" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+# Get the last_modified timestamp of a HF Hub repo.
+# Args: $1=repo_id
+# Output: ISO timestamp or "NONE" on stdout
+get_hub_timestamp() {
+    local repo_id="$1"
+    HF_TOKEN="$HF_TOKEN" REPO="$repo_id" python3 -c "
+import os
+from huggingface_hub import repo_info
+try:
+    info = repo_info(os.environ['REPO'], token=os.environ['HF_TOKEN'])
+    print(info.last_modified.isoformat())
+except Exception:
+    print('NONE')
+"
 }
 
 # Verify required Python packages are installed.

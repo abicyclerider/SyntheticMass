@@ -162,7 +162,6 @@ stages:
 
   infer:
     cmd: >-
-      rm -rf output/inferred &&
       mkdir -p output/inferred &&
       llm_classifier/infer_remote.sh
       --gpu-type "NVIDIA H100 80GB HBM3"
@@ -330,7 +329,6 @@ stages:
 
   train:
     cmd: >-
-      rm -rf output/training/train &&
       mkdir -p output/training/train &&
       llm_classifier/train_remote.sh
       --gpu-type "NVIDIA H100 80GB HBM3"
@@ -366,7 +364,6 @@ stages:
 
   export:
     cmd: >-
-      rm -rf output/training/export &&
       mkdir -p output/training/export &&
       llm_classifier/export_remote.sh
       --gpu-type "NVIDIA H100 80GB HBM3"

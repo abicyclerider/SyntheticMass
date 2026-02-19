@@ -229,6 +229,9 @@ mlflow_history.db
 .claude/
 CLAUDE.md
 
+# RunPod launch/collect state files
+llm_classifier/.state/
+
 # Editor and IDE directories
 .vscode/
 .idea/

@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
-# Automated remote export round-trip:
-#   Launch RunPod pod → merge LoRA → push merged model to HF Hub → download info
+# Autonomous remote export: launch pod → pod merges LoRA + pushes to HF Hub → collect results later.
+#
+# Auto-detects phase via a .state/export_launch_timestamp file:
+#   1. No timestamp file   → LAUNCH: launch pod, exit 1
+#   2. Timestamp + HF Hub NOT updated → NOT READY: print status, exit 1
+#   3. Timestamp + HF Hub updated     → COLLECT: download export info, exit 0
 #
 # Usage: ./export_remote.sh [--gpu-type "GPU NAME"] <output_dir>
 # Example: ./export_remote.sh output/training/export
+#
+# DVC workflow:
+#   dvc repro export         # launches pod, exits 1 (expected)
+#   dvc repro export         # collects results, exits 0
 
 set -euo pipefail
 
@@ -11,10 +19,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_remote_helpers.sh"
 
 OUTPUT_REPO="abicyclerider/medgemma-4b-entity-resolution-text-only"
-TIMEOUT=1800  # 30 minutes
-STALL_TIMEOUT=180
-MAX_RETRIES=3
-POLL_INTERVAL=30
 GPU_TYPE="NVIDIA GeForce RTX 4090"
 
 # --- Parse args ---
@@ -31,11 +35,7 @@ if [[ $# -lt 1 ]]; then
 fi
 OUTPUT_DIR="$1"
 
-echo "Export remote run"
-echo "  GPU type:   $GPU_TYPE"
-echo "  Output dir: $OUTPUT_DIR"
-
-# --- Check promotion decision ---
+# --- Check promotion decision (applies to both launch and collect) ---
 TRAIN_DIR="$(dirname "$OUTPUT_DIR")/train"
 PROMOTION_FILE="$TRAIN_DIR/promotion_decision.json"
 if [[ -f "$PROMOTION_FILE" ]]; then
@@ -51,50 +51,28 @@ fi
 # --- Setup ---
 check_python_deps huggingface_hub
 read_credentials
-
-POD_ID=""
-setup_pod_cleanup
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "$STATE_DIR"
 
-# Record merged model repo timestamp before export
-BEFORE_TS=$(HF_TOKEN="$HF_TOKEN" REPO="$OUTPUT_REPO" python3 -c "
-import os
-from huggingface_hub import repo_info
-try:
-    info = repo_info(os.environ['REPO'], token=os.environ['HF_TOKEN'])
-    print(info.last_modified.isoformat())
-except Exception:
-    print('NONE')
-")
-echo "Merged model repo last modified: $BEFORE_TS"
+TIMESTAMP_FILE="$STATE_DIR/export_launch_timestamp"
 
-# --- Launch pod and poll ---
-LAUNCH_CMD="\"$SCRIPT_DIR/launch_pod.sh\" export --gpu-type \"$GPU_TYPE\" --container-disk 50"
-poll_pod "$LAUNCH_CMD" "$TIMEOUT" "$STALL_TIMEOUT" "$MAX_RETRIES" "$POLL_INTERVAL"
+# =============================================================================
+# Phase detection
+# =============================================================================
 
-# --- Verify merged model repo was updated ---
-echo ""
-echo "=== Verify merged model updated on HF Hub ==="
-AFTER_TS=$(HF_TOKEN="$HF_TOKEN" REPO="$OUTPUT_REPO" python3 -c "
-import os
-from huggingface_hub import repo_info
-info = repo_info(os.environ['REPO'], token=os.environ['HF_TOKEN'])
-print(info.last_modified.isoformat())
-")
-echo "  Before: $BEFORE_TS"
-echo "  After:  $AFTER_TS"
+if [[ -f "$TIMESTAMP_FILE" ]]; then
+    BEFORE_TS=$(cat "$TIMESTAMP_FILE")
+    echo "Previous launch detected (timestamp: $BEFORE_TS)"
+    echo "Checking if merged model repo was updated..."
 
-if [[ "$BEFORE_TS" == "$AFTER_TS" && "$BEFORE_TS" != "NONE" ]]; then
-    echo "  WARNING: Merged model repo timestamp unchanged — export may have failed."
-    echo "  Check pod logs for errors."
-    exit 1
-fi
-echo "  OK: Merged model repo was updated."
+    if check_hub_updated "$OUTPUT_REPO" "$BEFORE_TS"; then
+        # --- COLLECT MODE ---
+        echo "Merged model repo updated — collecting results."
+        echo ""
 
-# --- Download export_info.json ---
-echo ""
-echo "=== Download export info ==="
-if ! HF_TOKEN="$HF_TOKEN" REPO="$OUTPUT_REPO" OUTPUT="$OUTPUT_DIR/export_info.json" python3 -c "
+        # Download export_info.json
+        echo "=== Download export info ==="
+        if ! HF_TOKEN="$HF_TOKEN" REPO="$OUTPUT_REPO" OUTPUT="$OUTPUT_DIR/export_info.json" python3 -c "
 import os, shutil
 from huggingface_hub import hf_hub_download
 path = hf_hub_download(
@@ -106,10 +84,59 @@ path = hf_hub_download(
 shutil.copy2(path, os.environ['OUTPUT'])
 print(f'  Downloaded to {os.environ[\"OUTPUT\"]}')
 "; then
-    echo "ERROR: Failed to download export_info.json from $OUTPUT_REPO."
-    echo "  The model may have been pushed without the info file."
-    exit 1
+            echo "ERROR: Failed to download export_info.json from $OUTPUT_REPO."
+            echo "  The model may have been pushed without the info file."
+            exit 1
+        fi
+
+        # Clean up state
+        rm -f "$TIMESTAMP_FILE"
+
+        echo ""
+        echo "Done. Export info saved to $OUTPUT_DIR/export_info.json"
+        exit 0
+    else
+        # --- NOT READY ---
+        echo ""
+        echo "Merged model repo NOT updated yet — export still in progress."
+        echo ""
+        echo "Check progress:"
+        echo "  - Pod status: runpodctl get pod"
+        echo ""
+        echo "Re-run 'dvc repro export' when export completes."
+        exit 1
+    fi
 fi
 
+# =============================================================================
+# LAUNCH MODE — no timestamp file exists
+# =============================================================================
+
+echo "Export remote run"
+echo "  GPU type:   $GPU_TYPE"
+echo "  Output dir: $OUTPUT_DIR"
+
+# Record merged model repo timestamp before export
+BEFORE_TS=$(get_hub_timestamp "$OUTPUT_REPO")
+echo "Merged model repo last modified: $BEFORE_TS"
+
+# Save timestamp for collect phase
+echo "$BEFORE_TS" > "$TIMESTAMP_FILE"
+
+# Launch pod
+POD_ID=""
+LAUNCH_CMD="\"$SCRIPT_DIR/launch_pod.sh\" export --gpu-type \"$GPU_TYPE\" --container-disk 50"
+launch_pod_with_retry "$LAUNCH_CMD" 3
+
 echo ""
-echo "Done. Export info saved to $OUTPUT_DIR/export_info.json"
+echo "Pod $POD_ID launched. It will merge LoRA + push to HF Hub."
+echo ""
+echo "Check progress:"
+echo "  - Pod status: runpodctl get pod"
+echo "  - Pod logs:   https://www.runpod.io/console/pods/$POD_ID/logs"
+echo ""
+echo "To manually stop: runpodctl stop pod $POD_ID"
+echo "To terminate:     runpodctl remove pod $POD_ID"
+echo ""
+echo "Re-run 'dvc repro export' to collect results once export completes."
+exit 1

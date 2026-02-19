@@ -110,18 +110,19 @@ launch_pod_with_retry() {
 }
 
 # Check if a HF Hub repo was updated after a saved timestamp.
-# Args: $1=repo_id  $2=before_timestamp (ISO format or "NONE")
+# Args: $1=repo_id  $2=before_timestamp (ISO format or "NONE")  $3=repo_type (default: "model")
 # Returns: 0 if updated (or repo was new), 1 if not updated
 check_hub_updated() {
     local repo_id="$1"
     local before_ts="$2"
+    local repo_type="${3:-model}"
 
     local after_ts
-    after_ts=$(HF_TOKEN="$HF_TOKEN" REPO="$repo_id" python3 -c "
+    after_ts=$(HF_TOKEN="$HF_TOKEN" REPO="$repo_id" REPO_TYPE="$repo_type" python3 -c "
 import os
 from huggingface_hub import repo_info
 try:
-    info = repo_info(os.environ['REPO'], repo_type='dataset', token=os.environ['HF_TOKEN'])
+    info = repo_info(os.environ['REPO'], repo_type=os.environ['REPO_TYPE'], token=os.environ['HF_TOKEN'])
     print(info.last_modified.isoformat())
 except Exception:
     print('NONE')
@@ -142,15 +143,16 @@ except Exception:
 }
 
 # Get the last_modified timestamp of a HF Hub repo.
-# Args: $1=repo_id
+# Args: $1=repo_id  $2=repo_type (default: "model")
 # Output: ISO timestamp or "NONE" on stdout
 get_hub_timestamp() {
     local repo_id="$1"
-    HF_TOKEN="$HF_TOKEN" REPO="$repo_id" python3 -c "
+    local repo_type="${2:-model}"
+    HF_TOKEN="$HF_TOKEN" REPO="$repo_id" REPO_TYPE="$repo_type" python3 -c "
 import os
 from huggingface_hub import repo_info
 try:
-    info = repo_info(os.environ['REPO'], repo_type='dataset', token=os.environ['HF_TOKEN'])
+    info = repo_info(os.environ['REPO'], repo_type=os.environ['REPO_TYPE'], token=os.environ['HF_TOKEN'])
     print(info.last_modified.isoformat())
 except Exception:
     print('NONE')

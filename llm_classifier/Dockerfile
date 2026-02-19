@@ -35,7 +35,8 @@ RUN pip install --no-cache-dir packaging psutil ninja && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY prepare_base_model.py \
+COPY _runpod.py \
+     prepare_base_model.py \
      train_classifier.py \
      export_model.py \
      infer_classifier.py \

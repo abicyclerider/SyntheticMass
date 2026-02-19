@@ -95,7 +95,7 @@ if [[ -f "$TIMESTAMP_FILE" ]]; then
     echo "Previous launch detected (timestamp: $BEFORE_TS)"
     echo "Checking if predictions repo was updated..."
 
-    if check_hub_updated "$HF_OUTPUT_REPO" "$BEFORE_TS"; then
+    if check_hub_updated "$HF_OUTPUT_REPO" "$BEFORE_TS" "dataset"; then
         # --- COLLECT MODE ---
         echo "Predictions repo updated — collecting results."
         echo ""
@@ -196,7 +196,7 @@ print(f'  Uploaded {len(df)} rows')
 fi
 
 # Record output repo timestamp before inference
-BEFORE_TS=$(get_hub_timestamp "$HF_OUTPUT_REPO")
+BEFORE_TS=$(get_hub_timestamp "$HF_OUTPUT_REPO" "dataset")
 echo "Predictions repo last modified: $BEFORE_TS"
 
 # Save timestamp for collect phase

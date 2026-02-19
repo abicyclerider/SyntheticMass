@@ -30,6 +30,8 @@ os.environ["TORCHINDUCTOR_COMPILE_THREADS"] = "1"
 
 import torch
 
+from _runpod import stop_runpod_pod
+
 BASE_MODEL_ID = "abicyclerider/medgemma-4b-text-only-base"
 ADAPTER_REPO = "abicyclerider/medgemma-4b-entity-resolution-classifier"
 OUTPUT_REPO = "abicyclerider/medgemma-4b-entity-resolution-text-only"
@@ -156,43 +158,12 @@ def validate_on_test(model, tokenizer, batch_size=16, max_length=2048):
     print(f"  Recall:    {rec:.4f}")
     print(f"  F1:        {f1:.4f}")
 
-    if abs(f1 - 0.963) > 0.005:
-        print(
-            f"\n  WARNING: F1 {f1:.4f} differs from expected 0.963 by more than 0.005!"
-        )
-    else:
-        print("\n  OK: F1 matches expected 0.963 (within tolerance)")
-
     return {
         "test_f1": f1,
         "test_accuracy": acc,
         "test_precision": prec,
         "test_recall": rec,
     }
-
-
-def stop_runpod_pod():
-    """Stop the current RunPod pod via API. No-op when not on RunPod."""
-    pod_id = os.environ.get("RUNPOD_POD_ID")
-    api_key = os.environ.get("RUNPOD_API_KEY")
-    if not pod_id or not api_key:
-        return
-    try:
-        import requests
-
-        print(f"\nStopping RunPod pod {pod_id}...")
-        resp = requests.post(
-            "https://api.runpod.io/graphql",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "query": f'mutation {{ podStop(input: {{podId: "{pod_id}"}}) {{ id }} }}'
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        print("  Pod stop requested.")
-    except Exception as e:
-        print(f"  Warning: failed to stop pod: {e}")
 
 
 def main():

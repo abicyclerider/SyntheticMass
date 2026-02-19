@@ -125,6 +125,17 @@ def main():
 
     ground_truth_df = load_ground_truth(RUN_DIR)
     ground_truth_df = add_record_ids_to_ground_truth(ground_truth_df, patients_df)
+    n_unmatched = ground_truth_df["record_id"].isna().sum()
+    if n_unmatched > 0:
+        pct = n_unmatched / len(ground_truth_df) * 100
+        print(
+            f"  WARNING: {n_unmatched}/{len(ground_truth_df)} ground truth rows "
+            f"({pct:.1f}%) have no matching record_id"
+        )
+        if pct > 10:
+            raise ValueError(
+                f"Ground truth merge lost {pct:.1f}% of rows — check data integrity"
+            )
 
     true_pairs = generate_true_pairs_from_ground_truth(ground_truth_df)
 
@@ -150,6 +161,17 @@ def main():
         if rid_to_true_id.get(r1) != rid_to_true_id.get(r2):
             non_match_pairs.add(tuple(sorted([r1, r2])))
         attempts += 1
+
+    if len(non_match_pairs) < target:
+        shortfall = target - len(non_match_pairs)
+        print(
+            f"  WARNING: Only generated {len(non_match_pairs)}/{target} "
+            f"non-match pairs ({shortfall} short)"
+        )
+        if len(non_match_pairs) < target * 0.9:
+            raise ValueError(
+                f"Non-match pair generation fell {shortfall} short of target {target}"
+            )
 
     print(f"\nTrue match pairs: {len(true_pairs)}")
     print(f"Non-match pairs:  {len(non_match_pairs)}")

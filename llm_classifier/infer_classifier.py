@@ -43,6 +43,8 @@ from sklearn.metrics import (
     recall_score,
 )
 
+from _runpod import stop_runpod_pod
+
 MODEL_ID = "abicyclerider/medgemma-4b-entity-resolution-text-only"
 DATASET_REPO = "abicyclerider/entity-resolution-pairs"
 
@@ -124,6 +126,26 @@ def predict_batch(model, tokenizer, texts, max_length=2048):
     return predictions, confidences
 
 
+def _run_batched_inference(model, tokenizer, texts, batch_size, max_length):
+    """Run batched inference. Returns (predictions, confidences, elapsed) arrays."""
+    all_preds, all_confs = [], []
+    n_batches = (len(texts) + batch_size - 1) // batch_size
+    print(f"\nRunning inference ({n_batches} batches, batch_size={batch_size})...")
+    t0 = time.time()
+    for i in range(0, len(texts), batch_size):
+        batch_texts = texts[i : i + batch_size]
+        preds, confs = predict_batch(model, tokenizer, batch_texts, max_length)
+        all_preds.extend(preds)
+        all_confs.extend(confs)
+        batch_num = i // batch_size + 1
+        if batch_num % 10 == 0 or batch_num == n_batches:
+            elapsed = time.time() - t0
+            rate = (i + len(batch_texts)) / elapsed
+            print(f"  Batch {batch_num}/{n_batches} — {rate:.1f} examples/sec")
+    elapsed = time.time() - t0
+    return np.array(all_preds), np.array(all_confs), elapsed
+
+
 def evaluate_test_split(model, tokenizer, batch_size, max_length, output_csv):
     """Load HF test split, run batched inference, compute & print metrics."""
     from datasets import load_dataset
@@ -141,29 +163,9 @@ def evaluate_test_split(model, tokenizer, batch_size, max_length, output_csv):
         f"  Label distribution: {labels.sum()} positive, {len(labels) - labels.sum()} negative"
     )
 
-    # Batched inference
-    all_preds = []
-    all_confs = []
-    n_batches = (len(texts) + batch_size - 1) // batch_size
-
-    print(f"\nRunning inference ({n_batches} batches, batch_size={batch_size})...")
-    t0 = time.time()
-
-    for i in range(0, len(texts), batch_size):
-        batch_texts = texts[i : i + batch_size]
-        preds, confs = predict_batch(model, tokenizer, batch_texts, max_length)
-        all_preds.extend(preds)
-        all_confs.extend(confs)
-
-        batch_num = i // batch_size + 1
-        if batch_num % 10 == 0 or batch_num == n_batches:
-            elapsed = time.time() - t0
-            rate = (i + len(batch_texts)) / elapsed
-            print(f"  Batch {batch_num}/{n_batches} — {rate:.1f} examples/sec")
-
-    elapsed = time.time() - t0
-    all_preds = np.array(all_preds)
-    all_confs = np.array(all_confs)
+    all_preds, all_confs, elapsed = _run_batched_inference(
+        model, tokenizer, texts, batch_size, max_length
+    )
 
     # Metrics
     print(f"\n{'=' * 60}")
@@ -238,29 +240,9 @@ def classify_file(model, tokenizer, input_path, output_path, batch_size, max_len
     has_labels = "label" in df.columns
     print(f"  Loaded {len(texts)} examples" + (" (with labels)" if has_labels else ""))
 
-    # Batched inference
-    all_preds = []
-    all_confs = []
-    n_batches = (len(texts) + batch_size - 1) // batch_size
-
-    print(f"\nRunning inference ({n_batches} batches, batch_size={batch_size})...")
-    t0 = time.time()
-
-    for i in range(0, len(texts), batch_size):
-        batch_texts = texts[i : i + batch_size]
-        preds, confs = predict_batch(model, tokenizer, batch_texts, max_length)
-        all_preds.extend(preds)
-        all_confs.extend(confs)
-
-        batch_num = i // batch_size + 1
-        if batch_num % 10 == 0 or batch_num == n_batches:
-            elapsed = time.time() - t0
-            rate = (i + len(batch_texts)) / elapsed
-            print(f"  Batch {batch_num}/{n_batches} — {rate:.1f} examples/sec")
-
-    elapsed = time.time() - t0
-    all_preds = np.array(all_preds)
-    all_confs = np.array(all_confs)
+    all_preds, all_confs, elapsed = _run_batched_inference(
+        model, tokenizer, texts, batch_size, max_length
+    )
 
     # Build output — drop text from result
     result = df.drop(columns=["text"], errors="ignore").copy()
@@ -298,29 +280,9 @@ def classify_hf_dataset(model, tokenizer, hf_input, hf_output, batch_size, max_l
     has_labels = "label" in df.columns
     print(f"  Loaded {len(texts)} examples" + (" (with labels)" if has_labels else ""))
 
-    # Batched inference
-    all_preds = []
-    all_confs = []
-    n_batches = (len(texts) + batch_size - 1) // batch_size
-
-    print(f"\nRunning inference ({n_batches} batches, batch_size={batch_size})...")
-    t0 = time.time()
-
-    for i in range(0, len(texts), batch_size):
-        batch_texts = texts[i : i + batch_size]
-        preds, confs = predict_batch(model, tokenizer, batch_texts, max_length)
-        all_preds.extend(preds)
-        all_confs.extend(confs)
-
-        batch_num = i // batch_size + 1
-        if batch_num % 10 == 0 or batch_num == n_batches:
-            elapsed = time.time() - t0
-            rate = (i + len(batch_texts)) / elapsed
-            print(f"  Batch {batch_num}/{n_batches} — {rate:.1f} examples/sec")
-
-    elapsed = time.time() - t0
-    all_preds = np.array(all_preds)
-    all_confs = np.array(all_confs)
+    all_preds, all_confs, elapsed = _run_batched_inference(
+        model, tokenizer, texts, batch_size, max_length
+    )
 
     # Build output — preserve input columns (except text), add prediction + confidence
     result = df.drop(columns=["text"], errors="ignore").copy()
@@ -348,30 +310,6 @@ def classify_hf_dataset(model, tokenizer, hf_input, hf_output, batch_size, max_l
         output_csv = "predictions.csv"
         result.to_csv(output_csv, index=False)
         print(f"  Saved to {output_csv}")
-
-
-def stop_runpod_pod():
-    """Stop the current RunPod pod via API. No-op when not on RunPod."""
-    pod_id = os.environ.get("RUNPOD_POD_ID")
-    api_key = os.environ.get("RUNPOD_API_KEY")
-    if not pod_id or not api_key:
-        return
-    try:
-        import requests
-
-        print(f"\nStopping RunPod pod {pod_id}...")
-        resp = requests.post(
-            "https://api.runpod.io/graphql",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "query": f'mutation {{ podStop(input: {{podId: "{pod_id}"}}) {{ id }} }}'
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        print("  Pod stop requested.")
-    except Exception as e:
-        print(f"  Warning: failed to stop pod: {e}")
 
 
 def main():

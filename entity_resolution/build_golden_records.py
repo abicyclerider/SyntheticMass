@@ -184,8 +184,10 @@ def main(
     prior_correction = math.log(gz_prior / (1.0 - gz_prior)) - math.log(
         llm_train_prior / (1.0 - llm_train_prior)
     )
-    logger.info(f"LLM prior correction: {prior_correction:.3f} logits "
-                f"(train={llm_train_prior}, gz={gz_prior})")
+    logger.info(
+        f"LLM prior correction: {prior_correction:.3f} logits "
+        f"(train={llm_train_prior}, gz={gz_prior})"
+    )
 
     llm_pairs = set()
     llm_confidences = {}

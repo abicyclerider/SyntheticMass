@@ -20,6 +20,13 @@ facility_distribution:
   # 40% distributed across secondary facilities
   primary_facility_weight: 0.60
 
+confusable_groups:
+  total_pairs: 0
+  type_weights:
+    twin: 0.40
+    parent_child: 0.30
+    sibling: 0.30
+
 error_injection:
   # 100% of patient records will have at least one error
   global_error_rate: 1.0

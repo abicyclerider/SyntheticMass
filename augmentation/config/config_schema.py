@@ -54,6 +54,19 @@ class FacilityDistributionConfig(BaseModel):
         return v
 
 
+class ConfusableGroupsConfig(BaseModel):
+    """Configuration for confusable patient group generation."""
+
+    total_pairs: int = Field(
+        default=0, ge=0, description="Number of confusable pairs to create (0=disabled)"
+    )
+
+    type_weights: Dict[str, float] = Field(
+        default={"twin": 0.40, "parent_child": 0.30, "sibling": 0.30},
+        description="Relative weights for confusable group types",
+    )
+
+
 class ErrorInjectionConfig(BaseModel):
     """Configuration for demographic error injection."""
 
@@ -116,6 +129,10 @@ class AugmentationConfig(BaseModel):
 
     facility_distribution: FacilityDistributionConfig = Field(
         default_factory=FacilityDistributionConfig
+    )
+
+    confusable_groups: ConfusableGroupsConfig = Field(
+        default_factory=ConfusableGroupsConfig
     )
 
     error_injection: ErrorInjectionConfig = Field(default_factory=ErrorInjectionConfig)

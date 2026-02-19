@@ -317,6 +317,11 @@ def main(
         if src_facilities.exists():
             shutil.copy2(src_facilities, metadata_dir / "facilities.parquet")
 
+        # Copy confusable_pairs.parquet if it exists
+        src_confusable = input_dir / "metadata" / "confusable_pairs.parquet"
+        if src_confusable.exists():
+            shutil.copy2(src_confusable, metadata_dir / "confusable_pairs.parquet")
+
         ground_truth_tracker.export_ground_truth(metadata_dir / "ground_truth.parquet")
         ground_truth_tracker.export_error_log_jsonl(metadata_dir / "error_log.jsonl")
 

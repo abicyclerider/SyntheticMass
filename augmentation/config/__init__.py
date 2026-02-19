@@ -2,6 +2,7 @@
 
 from .config_schema import (
     AugmentationConfig,
+    ConfusableGroupsConfig,
     ErrorInjectionConfig,
     FacilityDistributionConfig,
     PathConfig,
@@ -9,6 +10,7 @@ from .config_schema import (
 
 __all__ = [
     "AugmentationConfig",
+    "ConfusableGroupsConfig",
     "FacilityDistributionConfig",
     "ErrorInjectionConfig",
     "PathConfig",

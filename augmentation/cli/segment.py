@@ -24,7 +24,7 @@ from rich.progress import (
 )
 
 from ..config import AugmentationConfig
-from ..core import DataSplitter, FacilityAssigner
+from ..core import ConfusableGroupGenerator, DataSplitter, FacilityAssigner
 from ..core.streaming import stream_table_to_facilities
 from ..generators import FacilityGenerator
 from ..utils import DataHandler
@@ -62,6 +62,13 @@ def _log_memory(label: str) -> None:
     help="Random seed for facility assignment",
 )
 @click.option(
+    "--confusable-pairs",
+    "confusable_pairs",
+    type=int,
+    default=0,
+    help="Number of confusable patient pairs to create (0=disabled)",
+)
+@click.option(
     "--config",
     "config_file",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
@@ -72,6 +79,7 @@ def main(
     input_dir: Path,
     output_dir: Path,
     assignment_seed: int,
+    confusable_pairs: int,
     config_file: Path,
 ):
     """Segment Synthea data into per-facility Parquet files."""
@@ -161,6 +169,26 @@ def main(
             patient_facilities, encounter_facilities
         )
         console.print("[green]✓[/green] Assigned patients across facilities")
+
+        # ── Generate confusable patient pairs ──
+        n_confusable = confusable_pairs or config.confusable_groups.total_pairs
+        if n_confusable > 0:
+            task_c = progress.add_task(
+                "[cyan]Generating confusable pairs...", total=None
+            )
+            generator = ConfusableGroupGenerator(
+                type_weights=config.confusable_groups.type_weights,
+                random_seed=assignment_seed,
+            )
+            confusable_meta = generator.generate(
+                patients_df, patient_facilities, n_confusable
+            )
+            progress.update(task_c, completed=True, total=1)
+            console.print(
+                f"[green]✓[/green] Created {len(confusable_meta)} confusable pairs"
+            )
+        else:
+            confusable_meta = None
 
         # ── Precompute per-facility ID sets ──
         all_facilities = sorted(
@@ -319,6 +347,11 @@ def main(
         metadata_dir = output_dir / "metadata"
         metadata_dir.mkdir(parents=True, exist_ok=True)
         facilities_df.to_parquet(metadata_dir / "facilities.parquet", index=False)
+
+        if confusable_meta is not None and len(confusable_meta) > 0:
+            confusable_meta.to_parquet(
+                metadata_dir / "confusable_pairs.parquet", index=False
+            )
 
         # Save assignment info for reproducibility
         with open(metadata_dir / "assignment.json", "w") as f:

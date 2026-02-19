@@ -91,14 +91,17 @@ stages:
       -m augmentation.cli.segment
       --input /data/input --output /data/output
       --assignment-seed ${augment.assignment_seed}
+      --confusable-pairs ${augment.confusable_pairs}
     params:
     - augment.assignment_seed
+    - augment.confusable_pairs
     deps:
     - synthea_runner/output/synthea_parquet
     - augmentation/Dockerfile
     - augmentation/requirements-runtime.txt
     - augmentation/cli/segment.py
     - augmentation/core/streaming.py
+    - augmentation/core/confusable_groups.py
     outs:
     - output/segmented:
         cache: false
@@ -262,14 +265,17 @@ stages:
       -m augmentation.cli.segment
       --input /data/input --output /data/output
       --assignment-seed ${augment_training.assignment_seed}
+      --confusable-pairs ${augment_training.confusable_pairs}
     params:
     - augment_training.assignment_seed
+    - augment_training.confusable_pairs
     deps:
     - output/training/synthea_parquet
     - augmentation/Dockerfile
     - augmentation/requirements-runtime.txt
     - augmentation/cli/segment.py
     - augmentation/core/streaming.py
+    - augmentation/core/confusable_groups.py
     outs:
     - output/training/segmented:
         cache: false

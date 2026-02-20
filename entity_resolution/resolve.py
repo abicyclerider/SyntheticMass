@@ -68,12 +68,20 @@ def generate_gray_zone_texts(
     gray_zone_df: pd.DataFrame,
     patients_df: pd.DataFrame,
     medical_records: dict,
+    output_path: Path | None = None,
+    chunk_size: int = 5000,
 ) -> pd.DataFrame:
     """Build LLM input texts for gray zone pairs.
 
     Accepts a flat DataFrame with record_id_1, record_id_2, total_score columns
     (Splink output format).
+
+    When output_path is provided, writes chunks incrementally to parquet to
+    avoid holding all texts in memory (important for large gray zones).
     """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
     # Build record_id -> (patient_uuid, facility_id) lookup
     record_lookup = patients_df.set_index("record_id")[["id", "facility_id"]].to_dict(
         "index"
@@ -97,8 +105,19 @@ def generate_gray_zone_texts(
                 result[record_type] = group
         return result
 
+    schema = pa.schema(
+        [
+            ("record_id_1", pa.string()),
+            ("record_id_2", pa.string()),
+            ("total_score", pa.float64()),
+            ("text", pa.string()),
+        ]
+    )
+    writer = pq.ParquetWriter(output_path, schema) if output_path else None
+
     rows = []
     total = len(gray_zone_df)
+    written = 0
     for i, (_, feat_row) in enumerate(gray_zone_df.iterrows(), 1):
         rid1 = feat_row["record_id_1"]
         rid2 = feat_row["record_id_2"]
@@ -125,8 +144,27 @@ def generate_gray_zone_texts(
             }
         )
 
+        if writer and len(rows) >= chunk_size:
+            chunk_df = pd.DataFrame(rows)
+            writer.write_table(pa.Table.from_pandas(chunk_df, schema=schema))
+            written += len(rows)
+            rows.clear()
+
         if i % 100 == 0 or i == total:
             logger.info(f"  Gray zone text generation: {i}/{total}")
+
+    # Flush remaining rows
+    if rows:
+        chunk_df = pd.DataFrame(rows)
+        if writer:
+            writer.write_table(pa.Table.from_pandas(chunk_df, schema=schema))
+            written += len(rows)
+            rows.clear()
+
+    if writer:
+        writer.close()
+        logger.info(f"Wrote {written} gray zone pairs to {output_path}")
+        return pd.DataFrame(columns=["record_id_1", "record_id_2", "total_score", "text"])
 
     return pd.DataFrame(rows)
 
@@ -283,9 +321,10 @@ def main(augmented_dir, output_dir, config):
         str(run_dir), record_types=SUMMARIZER_RECORD_TYPES, columns=SUMMARIZER_COLUMNS
     )
 
-    gray_zone_df = generate_gray_zone_texts(gray_zone, patients_df, medical_records)
-    gray_zone_df.to_parquet(out / "gray_zone_pairs.parquet", index=False)
-    logger.info(f"Saved {len(gray_zone_df)} gray zone pairs")
+    gray_zone_path = out / "gray_zone_pairs.parquet"
+    generate_gray_zone_texts(
+        gray_zone, patients_df, medical_records, output_path=gray_zone_path
+    )
 
     # --- Step 9: Save features ---
     all_predictions.to_parquet(out / "features.parquet", index=False)

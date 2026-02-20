@@ -4,7 +4,7 @@ stages:
     cmd: rm -rf synthea_runner/output/synthea_raw && docker run --rm -e 
       JAVA_OPTS=-Xmx8g -v 
       $(pwd)/synthea_runner/output/synthea_raw:/synthea/synthea/output synthea 
-      /bin/sh -c "./run_synthea -p 1000 -s 67890 
+      /bin/sh -c "./run_synthea -p 5000 -s 67890 
       --exporter.baseDirectory=./output --exporter.csv.export=true 
       --exporter.fhir.export=false Massachusetts"
     deps:
@@ -14,13 +14,13 @@ stages:
       size: 72
     params:
       params.yaml:
-        generate.population: 1000
+        generate.population: 5000
         generate.seed: 67890
     outs:
     - path: synthea_runner/output/synthea_raw/csv
       hash: md5
-      md5: 79a686027ea27a1209bcad7980aff492.dir
-      size: 981538068
+      md5: 136ca70e0a3929cf6fd79afee8c9b208.dir
+      size: 4895067565
       nfiles: 18
   augment:
     cmd: rm -rf output/augmented && docker run --rm -v 
@@ -712,14 +712,14 @@ stages:
       size: 207
     - path: synthea_runner/output/synthea_raw/csv
       hash: md5
-      md5: 79a686027ea27a1209bcad7980aff492.dir
-      size: 981538068
+      md5: 136ca70e0a3929cf6fd79afee8c9b208.dir
+      size: 4895067565
       nfiles: 18
     outs:
     - path: synthea_runner/output/synthea_parquet
       hash: md5
-      md5: 046fea0869f26d746b5f77e5f3f860b1.dir
-      size: 143238203
+      md5: 00cf43d2b34ea7142ce88319213f7254.dir
+      size: 694297286
       nfiles: 18
   segment:
     cmd: rm -rf output/segmented && docker build -t augmentation augmentation/ 
@@ -751,8 +751,8 @@ stages:
       size: 207
     - path: synthea_runner/output/synthea_parquet
       hash: md5
-      md5: 046fea0869f26d746b5f77e5f3f860b1.dir
-      size: 143238203
+      md5: 00cf43d2b34ea7142ce88319213f7254.dir
+      size: 694297286
       nfiles: 18
     params:
       params.yaml:
@@ -761,8 +761,8 @@ stages:
     outs:
     - path: output/segmented
       hash: md5
-      md5: a0d88d0e39702f8d3f7a87ef0f6569e3.dir
-      size: 136131822
+      md5: 6f12c65e83c2868b3399762f169d71e5.dir
+      size: 661876388
       nfiles: 93
   inject_errors:
     cmd: rm -rf output/augmented && docker build -t augmentation augmentation/ 
@@ -796,8 +796,8 @@ stages:
       size: 207
     - path: output/segmented
       hash: md5
-      md5: a0d88d0e39702f8d3f7a87ef0f6569e3.dir
-      size: 136131822
+      md5: 6f12c65e83c2868b3399762f169d71e5.dir
+      size: 661876388
       nfiles: 93
     params:
       params.yaml:
@@ -808,8 +808,8 @@ stages:
     outs:
     - path: output/augmented
       hash: md5
-      md5: 37cc2c19af913183560e4ddf5392c6b7.dir
-      size: 139516018
+      md5: ffd257a458eb779c2f8dfdb0c355cb2f.dir
+      size: 678270881
       nfiles: 96
   build_gpu_image:
     cmd: 'mkdir -p .build && docker buildx imagetools inspect ghcr.io/abicyclerider/medgemma-pipeline:sha-$(git

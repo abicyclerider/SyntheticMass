@@ -13,7 +13,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="ghcr.io/abicyclerider/medgemma-pipeline:latest"
+IMAGE="ghcr.io/abicyclerider/medgemma-pipeline:sha-$(git rev-parse HEAD)"
 DEFAULT_GPU="NVIDIA GeForce RTX 4090"
 DEFAULT_DISK=30
 

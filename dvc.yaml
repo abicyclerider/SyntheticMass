@@ -24,6 +24,27 @@ stages:
   # source files it actually uses. This avoids re-running golden_records when
   # only resolve.py changes (and vice versa).
 
+  build_gpu_image:
+    cmd: >-
+      mkdir -p .build &&
+      docker buildx imagetools inspect
+      ghcr.io/abicyclerider/medgemma-pipeline:sha-$(git rev-parse HEAD)
+      > /dev/null 2>&1 &&
+      echo "sha-$(git rev-parse HEAD)" > .build/gpu-image.iid ||
+      { echo "ERROR: GHCR image not found for commit $(git rev-parse --short HEAD).";
+      echo "Push to main and wait for CI to build the image."; exit 1; }
+    deps:
+    - llm_classifier/Dockerfile
+    - llm_classifier/requirements.txt
+    - llm_classifier/_runpod.py
+    - llm_classifier/prepare_base_model.py
+    - llm_classifier/train_classifier.py
+    - llm_classifier/export_model.py
+    - llm_classifier/infer_classifier.py
+    outs:
+    - .build/gpu-image.iid:
+        cache: false
+
   build_prepare_dataset:
     cmd: >-
       mkdir -p .build &&
@@ -175,11 +196,9 @@ stages:
       output/resolved/gray_zone_pairs.parquet
       output/inferred/predictions.parquet
     deps:
-    - llm_classifier/Dockerfile
+    - .build/gpu-image.iid
     - llm_classifier/_remote_helpers.sh
     - llm_classifier/infer_remote.sh
-    - llm_classifier/infer_classifier.py
-    - llm_classifier/requirements.txt
     - llm_classifier/launch_pod.sh
     - output/resolved/gray_zone_pairs.parquet
     outs:
@@ -363,12 +382,10 @@ stages:
     - train.max_steps
     deps:
     - output/training/dataset/dataset_info.json
-    - llm_classifier/train_classifier.py
+    - .build/gpu-image.iid
     - llm_classifier/train_remote.sh
     - llm_classifier/_remote_helpers.sh
     - llm_classifier/launch_pod.sh
-    - llm_classifier/Dockerfile
-    - llm_classifier/requirements.txt
     - llm_classifier/promote_model.py
     outs:
     - output/training/train/train_metrics.json:
@@ -385,12 +402,10 @@ stages:
     deps:
     - output/training/train/train_metrics.json
     - output/training/train/promotion_decision.json
-    - llm_classifier/export_model.py
+    - .build/gpu-image.iid
     - llm_classifier/export_remote.sh
     - llm_classifier/_remote_helpers.sh
     - llm_classifier/launch_pod.sh
-    - llm_classifier/Dockerfile
-    - llm_classifier/requirements.txt
     outs:
     - output/training/export/export_info.json:
         cache: false

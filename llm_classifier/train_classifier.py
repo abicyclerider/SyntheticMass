@@ -254,7 +254,6 @@ def main():
         fp16=False,
         dataloader_num_workers=4,
         dataloader_pin_memory=True,
-        group_by_length=True,
         seed=42,
         report_to="mlflow",
         push_to_hub=not args.no_push,

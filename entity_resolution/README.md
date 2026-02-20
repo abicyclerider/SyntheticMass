@@ -6,9 +6,9 @@ Probabilistic entity resolution using [Splink v4](https://github.com/moj-analyti
 
 The entity resolution pipeline takes augmented multi-facility patient data and produces a master patient index (golden records). It operates in three tiers:
 
-1. **Auto-match** — Splink assigns match probabilities to candidate pairs. Pairs above 0.95 are accepted without LLM review.
-2. **Gray zone** — Pairs between 0.05 and 0.95 are ambiguous on demographics alone. These are enriched with structured clinical summaries and sent to a fine-tuned MedGemma classifier.
-3. **Auto-reject** — Pairs below 0.05 are discarded.
+1. **Auto-match** — Splink assigns match probabilities to candidate pairs. Pairs above 0.99 are accepted without LLM review.
+2. **Gray zone** — Pairs between 0.01 and 0.99 are ambiguous on demographics alone. These are enriched with structured clinical summaries and sent to a fine-tuned MedGemma classifier.
+3. **Auto-reject** — Pairs below 0.01 are discarded.
 
 Final matches from both tiers are clustered into connected components and merged into golden records with field-level conflict resolution.
 
@@ -65,18 +65,20 @@ State is excluded — all records are Massachusetts, so it has zero discriminati
 
 ## Gray Zone Fusion
 
-Gray zone predictions combine two signals in log-odds space:
+Gray zone predictions combine two signals in log-odds space with a Bayesian prior correction:
 
 ```
-combined_logit = w_splink * log(p/(1-p)) + w_llm * llm_logit
+combined_logit = w_splink * log(p/(1-p)) + w_llm * (llm_logit + prior_correction)
 ```
 
-- `w_splink` (default 0.5) — weight on Splink demographic signal
-- `w_llm` (default 1.0) — weight on LLM clinical signal
-- `threshold` (default 0.0) — combined logit threshold (0.0 = 50/50 odds)
-- `min_splink_probability` (default 0.3) — vetoes LLM matches when demographics strongly disagree
+The prior correction accounts for the mismatch between the balanced training data (50/50) and the production gray zone (~1% true matches): `correction = logit(gray_zone_prior) - logit(llm_training_prior)`.
 
-This prevents the LLM from overriding clear demographic mismatches while allowing it to resolve genuinely ambiguous cases.
+- `w_splink` (default 1.0) — weight on Splink demographic signal
+- `w_llm` (default 1.5) — weight on LLM clinical signal (LLM more reliable than demographics with heavy errors)
+- `threshold` (default -5.5) — combined logit threshold (grid-searched on 1k patient eval)
+- `min_splink_probability` (default 0.0) — Splink probability floor veto (currently disabled)
+- `llm_training_prior` (default 0.5) — base rate in LLM training data (balanced 50/50)
+- `gray_zone_prior` (default 0.01) — estimated true-match rate in the gray zone
 
 ## Golden Record Creation
 
@@ -101,15 +103,17 @@ Key parameters from [`config/matching_config.yaml`](config/matching_config.yaml)
 
 ```yaml
 splink:
-  predict_threshold: 0.01        # Minimum probability to keep as candidate
-  auto_match_probability: 0.95   # Auto-match threshold
-  auto_reject_probability: 0.05  # Auto-reject threshold
+  predict_threshold: 0.0001      # Minimum probability to keep as candidate
+  auto_match_probability: 0.99   # P >= 0.99 → definite match
+  auto_reject_probability: 0.0001 # P < 0.0001 → definite non-match
 
 gray_zone:
-  w_splink: 0.5                  # Splink logit weight
-  w_llm: 1.0                    # LLM logit weight
-  threshold: 0.0                 # Combined logit decision boundary
-  min_splink_probability: 0.3    # Splink probability floor (veto)
+  w_splink: 1.0                  # Splink logit weight
+  w_llm: 1.5                    # LLM logit weight
+  threshold: -5.5                # Combined logit threshold (grid-searched)
+  min_splink_probability: 0.0    # Floor: disabled (no veto)
+  llm_training_prior: 0.5        # Base rate in training data (balanced 50/50)
+  gray_zone_prior: 0.01          # Estimated true-match rate in gray zone
 
 golden_record:
   conflict_resolution: "most_frequent"

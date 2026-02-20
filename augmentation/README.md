@@ -19,28 +19,40 @@ pip install -r requirements.txt
 
 ## Quick Start
 
+The augmentation pipeline runs as three separate stages (typically via DVC):
+
 ```bash
-python -m augmentation.cli.augment \
+# 1. Convert Synthea CSVs to typed Parquet
+python -m augmentation.cli.csv_to_parquet \
   --input synthea_runner/output/synthea_raw/csv \
+  --output synthea_runner/output/synthea_parquet
+
+# 2. Distribute patients across facilities
+python -m augmentation.cli.segment \
+  --input synthea_runner/output/synthea_parquet \
+  --output output/segmented \
+  --assignment-seed 99
+
+# 3. Inject demographic errors
+python -m augmentation.cli.inject_errors \
+  --input output/segmented \
   --output output/augmented \
-  --config augmentation/config/default_config.yaml
+  --error-seed 99
 ```
 
 ## Output Structure
 
 ```
-output/augmented/run_[timestamp]/
+output/augmented/
 ├── facilities/
-│   ├── facility_001/          # All 18 CSVs for facility 1
+│   ├── facility_001/          # Parquet files per record type
 │   ├── facility_002/
 │   └── ...
 ├── metadata/
-│   ├── facilities.csv         # Facility information
-│   ├── ground_truth.csv       # Patient→facility mapping
-│   ├── error_log.jsonl        # Detailed error log
-│   └── run_config.yaml        # Configuration snapshot
+│   ├── facilities.parquet     # Facility information
+│   ├── ground_truth.parquet   # Patient→facility mapping
+│   └── confusable_pairs.parquet
 └── statistics/
-    ├── distribution_report.json
     └── error_summary.json
 ```
 
@@ -88,9 +100,11 @@ Run tests:
 pytest augmentation/tests/
 ```
 
-Run with validation:
+Run error injection with validation:
 ```bash
-python -m augmentation.cli.augment --validate
+python -m augmentation.cli.inject_errors \
+  --input output/segmented --output output/augmented \
+  --error-seed 99 --validate
 ```
 
 ## Future Enhancements

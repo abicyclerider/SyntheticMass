@@ -55,15 +55,15 @@ from shared.summarize import summarize_diff_friendly
 from shared.evaluation import calculate_confusion_matrix, calculate_metrics
 
 # Load patient data
-patients = load_facility_patients("output/augmented/run_001")
+patients = load_facility_patients("output/augmented")
 patients = create_record_id(patients)
 
 # Load ground truth and generate true pairs
-gt = load_ground_truth("output/augmented/run_001")
+gt = load_ground_truth("output/augmented")
 true_pairs = generate_true_pairs_from_ground_truth(gt)
 
 # Load clinical records and summarize a patient
-records = load_medical_records("output/augmented/run_001")
+records = load_medical_records("output/augmented")
 summary = summarize_diff_friendly("uuid-123", "facility_001", records)
 
 # Evaluate predictions

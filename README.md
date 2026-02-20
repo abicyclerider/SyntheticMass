@@ -12,19 +12,19 @@ The pipeline is fully reproducible via [DVC](https://dvc.org/), with separate tr
 
 Entity resolution uses a three-tier approach: fast probabilistic linkage handles the clear cases, while a clinical language model resolves the ambiguous middle.
 
-**Tier 1 — Splink probabilistic linkage.** [Splink v4](https://github.com/moj-analytical-services/splink) trains a Fellegi-Sunter model via unsupervised EM on 7 demographic fields (names, address, city, ZIP, SSN, date of birth). Blocking rules generate candidate pairs; each pair gets a match probability. Pairs above 0.95 are auto-matched, below 0.05 are auto-rejected.
+**Tier 1 — Splink probabilistic linkage.** [Splink v4](https://github.com/moj-analytical-services/splink) trains a Fellegi-Sunter model via unsupervised EM on 7 demographic fields (names, address, city, ZIP, SSN, date of birth). Blocking rules generate candidate pairs; each pair gets a match probability. Pairs above 0.99 are auto-matched, below 0.01 are auto-rejected.
 
-**Tier 2 — MedGemma gray zone classifier.** Pairs in the 0.05–0.95 range are ambiguous on demographics alone. For each, the pipeline generates structured clinical summaries (conditions, medications, allergies, observations, procedures grouped by year) and passes them to a fine-tuned [MedGemma 4B](https://huggingface.co/google/medgemma-4b-it) text-only classifier. The model was QLoRA-trained (r=16, attention + MLP targets) on 30K balanced pairs, reducing 4.2B parameters to a 3.88B text-only model by stripping the vision tower before training.
+**Tier 2 — MedGemma gray zone classifier.** Pairs in the 0.01–0.99 range are ambiguous on demographics alone. For each, the pipeline generates structured clinical summaries (conditions, medications, allergies, observations, procedures grouped by year) and passes them to a fine-tuned [MedGemma 4B](https://huggingface.co/google/medgemma-4b-it) text-only classifier. The model was QLoRA-trained (r=16, attention + MLP targets) on 30K balanced pairs, reducing 4.2B parameters to a 3.88B text-only model by stripping the vision tower before training.
 
 **Tier 3 — Logit-space fusion.** The Splink match probability and LLM prediction logit are combined in log-odds space (`w_splink * splink_logit + w_llm * llm_logit`), with a configurable Splink probability floor that vetoes LLM matches when demographics strongly disagree. Final matches are clustered via connected components and merged into golden records with field-level conflict resolution.
 
 ## Results
 
-### Pipeline Performance (500-patient inference set)
+### Pipeline Performance (2,500-patient inference set)
 
 | Stage | Precision | Recall | F1 |
 |-------|-----------|--------|-----|
-| Splink auto-match (>0.95) | 0.993 | 0.998 | 0.996 |
+| Splink auto-match (>0.99) | 0.993 | 0.998 | 0.996 |
 | Full pipeline (Splink + MedGemma + fusion) | **0.993** | **1.000** | **0.997** |
 
 - **1,184** true pairs recovered, **8** false positives, **0** false negatives
@@ -49,26 +49,30 @@ The pipeline is managed by DVC and defined in [`dvc.yaml`](dvc.yaml). Parameters
 **Inference track** (main pipeline):
 
 ```
-generate → augment → resolve → infer → golden_records
+generate → csv_to_parquet → segment → inject_errors → resolve → infer → golden_records
 ```
 
-1. **generate** — Run Synthea to create synthetic patient CSVs (500 patients, seed 67890)
-2. **augment** — Distribute patients across 5 facilities, inject demographic errors, create ground truth
-3. **resolve** — Splink probabilistic linkage: auto-matches + gray zone pairs with clinical summaries
-4. **infer** — MedGemma classifier scores gray zone pairs (RunPod GPU)
-5. **golden_records** — Fuse auto-matches + LLM predictions, cluster, merge into golden records, evaluate
+1. **generate** — Run Synthea to create synthetic patient CSVs (2,500 patients, seed 67890)
+2. **csv_to_parquet** — Convert Synthea CSVs to typed Parquet tables
+3. **segment** — Distribute patients across 5 facilities
+4. **inject_errors** — Inject demographic errors, create ground truth
+5. **resolve** — Splink probabilistic linkage: auto-matches + gray zone pairs with clinical summaries
+6. **infer** — MedGemma classifier scores gray zone pairs (RunPod GPU)
+7. **golden_records** — Fuse auto-matches + LLM predictions, cluster, merge into golden records, evaluate
 
 **Training track** (model fine-tuning):
 
 ```
-generate_training → augment_training → prepare_dataset → train → export
+generate_training → csv_to_parquet_training → segment_training → inject_errors_training → prepare_dataset → train → export
 ```
 
-6. **generate_training** — Separate Synthea run (500 patients, seed 12345)
-7. **augment_training** — Augment training data with same error model
-8. **prepare_dataset** — Build HuggingFace dataset with Strategy D clinical summaries (Docker)
-9. **train** — QLoRA fine-tuning on RunPod GPU (H100 ~2h, 3 epochs)
-10. **export** — Merge LoRA adapter into base model, push to HF Hub
+8. **generate_training** — Separate Synthea run (30,000 patients, seed 12345)
+9. **csv_to_parquet_training** — Convert training CSVs to Parquet
+10. **segment_training** — Distribute training patients across facilities
+11. **inject_errors_training** — Inject errors into training data
+12. **prepare_dataset** — Build HuggingFace dataset with Strategy D clinical summaries (Docker)
+13. **train** — QLoRA fine-tuning on RunPod GPU (H100 ~2h, 3 epochs)
+14. **export** — Merge LoRA adapter into base model, push to HF Hub
 
 ## Project Structure
 
@@ -81,7 +85,7 @@ SyntheticMass/
 ├── llm_classifier/          # MedGemma 4B classifier: data prep, training, export, inference
 ├── shared/                  # Shared utilities (data_loader, summarizer, ground_truth)
 ├── output/                  # DVC-managed pipeline outputs (gitignored)
-├── dvc.yaml                 # Pipeline definition (10 stages)
+├── dvc.yaml                 # Pipeline definition (17 stages)
 ├── params.yaml              # Pipeline parameters
 └── pyproject.toml           # Python project config (ruff, mypy, pytest)
 ```
@@ -112,7 +116,7 @@ echo "HF_TOKEN=hf_yourtoken" > llm_classifier/.env
 runpodctl config --apiKey your_runpod_key
 ```
 
-Non-GPU stages (generate, augment, resolve, golden_records) require no API keys.
+Non-GPU stages (generate, csv_to_parquet, segment, inject_errors, resolve, golden_records) require no API keys.
 
 All `docker build` commands tag images with both a bare name and the current git SHA (e.g., `entity_resolution:abc1234`) for debugging and rollback.
 

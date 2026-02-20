@@ -37,8 +37,8 @@ python export_model.py
 # 5. Evaluate on HF test split
 python infer_classifier.py --dataset
 
-# 5b. Classify a custom CSV (must have a 'text' column)
-python infer_classifier.py --input-csv pairs.csv --output-csv predictions.csv
+# 5b. Classify a local file (Parquet or CSV, must have a 'text' column)
+python infer_classifier.py --input-file pairs.parquet --output-file predictions.parquet
 
 # 5c. HF Hub round-trip (for remote GPU — RunPod, Vertex AI)
 python infer_classifier.py \
@@ -94,7 +94,7 @@ The `launch_pod.sh` script launches any pipeline stage on a RunPod GPU pod. It u
 python -c "
 from datasets import Dataset
 import pandas as pd
-df = pd.read_csv('output/resolved/gray_zone_pairs.csv')
+df = pd.read_parquet('output/resolved/gray_zone_pairs.parquet')
 Dataset.from_pandas(df).push_to_hub('abicyclerider/grey-zone-pairs')
 "
 
@@ -108,14 +108,14 @@ cd llm_classifier
 python -c "
 from datasets import load_dataset
 ds = load_dataset('abicyclerider/grey-zone-predictions', split='train')
-ds.to_pandas().to_csv('output/inferred/predictions.csv', index=False)
+ds.to_pandas().to_parquet('output/inferred/predictions.parquet')
 "
 
 # 4. Continue DVC pipeline
 dvc repro golden_records
 ```
 
-Override GPU type (default: NVIDIA L40S):
+Override GPU type (default in DVC: NVIDIA H100 80GB HBM3):
 
 ```bash
 ./launch_pod.sh infer --gpu-type "NVIDIA A100 80GB PCIe" \

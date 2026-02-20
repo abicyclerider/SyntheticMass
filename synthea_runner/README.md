@@ -1,6 +1,6 @@
 # Synthea Runner
 
-Simple Docker Compose setup for generating synthetic patient data using [Synthea](https://github.com/synthetichealth/synthea).
+Docker-based setup for generating synthetic patient data using [Synthea](https://github.com/synthetichealth/synthea), managed by DVC.
 
 ## Overview
 
@@ -10,7 +10,7 @@ This runner uses the [synthea-docker](https://github.com/mrreband/synthea-docker
 
 - **Docker**: For running Synthea
 - **Git**: For cloning repository and initializing submodules
-- **4GB+ RAM**: Required for Synthea generation
+- **8GB+ RAM**: Required for Synthea generation (Java heap set to 8GB)
 
 ## Quick Start
 
@@ -23,19 +23,21 @@ git submodule update --init --recursive
 
 ### 2. Generate Synthetic Patients
 
+Generation is managed by DVC stages (`generate` and `generate_training`):
+
 ```bash
-# From synthea_runner directory
-cd synthea_runner
-docker compose up
+# Run via DVC (recommended)
+dvc repro generate
 
 # Output will be created in: ./output/synthea_raw/csv/
 ```
 
-Generation parameters are configured in [`params.yaml`](../params.yaml) and run via DVC. Defaults:
-- **500 patients** from Massachusetts
-- Fixed seeds for reproducibility (inference: 67890, training: 12345)
+Generation parameters are configured in [`params.yaml`](../params.yaml) and run via DVC:
+- **2,500 patients** for inference (seed 67890)
+- **30,000 patients** for training (seed 12345)
 - **8GB RAM** Java heap allocation
 - **CSV format only** (FHIR disabled)
+- Massachusetts population
 
 ## Generated Output
 
@@ -63,11 +65,11 @@ Synthea produces CSV files in `./output/synthea_raw/csv/`:
 
 ### Modify Generation Parameters
 
-Edit `docker-compose.yml` to change:
-- Population size: `-p 500` (change 500 to desired number)
-- Random seed: `-s 12345` (change for different patient set)
-- State/location: `Massachusetts` (change to other US state)
-- Memory: `JAVA_OPTS=-Xmx4g` (increase for larger populations)
+Edit `params.yaml` in the project root to change generation parameters:
+- `generate.population`: Patient count for inference (default: 2500)
+- `generate.seed`: Random seed for inference (default: 67890)
+- `generate_training.population`: Patient count for training (default: 30000)
+- `generate_training.seed`: Random seed for training (default: 12345)
 
 ### Synthea Properties
 
@@ -83,12 +85,12 @@ See [Synthea Configuration Guide](https://github.com/synthetichealth/synthea/wik
 
 ```
 synthea_runner/
-├── docker-compose.yml             # Docker Compose service definition
 ├── config/
 │   └── synthea.properties         # Synthea configuration
-├── synthea-docker/                # Synthea Docker submodule
+├── synthea-docker/                # Synthea Docker submodule (Dockerfile + build)
 └── output/                        # Generated data (gitignored)
-    └── synthea_raw/csv/           # Synthea CSV output
+    ├── synthea_raw/csv/           # Synthea CSV output
+    └── synthea_parquet/           # Parquet-converted output (from csv_to_parquet stage)
 ```
 
 ## Documentation
@@ -107,11 +109,7 @@ git submodule update --init --recursive
 ```
 
 ### Out of memory errors
-Increase heap size in `docker-compose.yml`:
-```yaml
-environment:
-  - JAVA_OPTS=-Xmx8g  # Increase from 4g to 8g
-```
+The DVC stage sets `JAVA_OPTS=-Xmx8g` by default. For larger populations, increase the heap size in the `generate` stage command in `dvc.yaml`.
 
 ### Permission errors on output directory
 ```bash

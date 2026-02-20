@@ -374,7 +374,6 @@ stages:
       --max-samples ${train.max_samples}
       --max-steps ${train.max_steps}
       --gradient-checkpointing
-      --torch-compile
     params:
     - train.epochs
     - train.batch_size

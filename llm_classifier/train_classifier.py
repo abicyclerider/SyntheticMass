@@ -2,8 +2,9 @@
 """
 Train text-only MedGemma 4B as a binary classifier for entity resolution on GPU.
 
-Uses QLoRA (4-bit NF4) on the text-only base model (vision tower already stripped
-by prepare_base_model.py). Trains a 2-class classification head
+Uses LoRA on the text-only base model (vision tower already stripped by
+prepare_base_model.py). Supports QLoRA (4-bit NF4, default) or bf16 (--no-quantize)
+for the frozen weights. Trains a 2-class classification head
 (Gemma3TextForSequenceClassification) with LoRA on attention + MLP projections.
 
 Usage (RunPod A4000):
@@ -54,7 +55,7 @@ def compute_metrics(eval_pred):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Train MedGemma 4B classifier for entity resolution (QLoRA)"
+        description="Train MedGemma 4B classifier for entity resolution (LoRA)"
     )
     parser.add_argument("--epochs", type=int, default=6)
     parser.add_argument("--batch-size", type=int, default=4)
@@ -87,12 +88,17 @@ def main():
         default=0,
         help="Stop after N optimizer steps (0=use epochs instead)",
     )
+    parser.add_argument(
+        "--no-quantize",
+        action="store_true",
+        help="Load in bf16 instead of 4-bit NF4 (needs more VRAM, faster training)",
+    )
     args = parser.parse_args()
 
-    # Device detection — QLoRA requires CUDA
+    # Device detection — training requires CUDA
     if not torch.cuda.is_available():
         raise RuntimeError(
-            "CUDA required for QLoRA training. Run this on a GPU machine (e.g. RunPod A4000)."
+            "CUDA required for training. Run this on a GPU machine (e.g. RunPod H100)."
         )
 
     gpu_name = torch.cuda.get_device_name(0)
@@ -146,22 +152,31 @@ def main():
 
     dataset = dataset.map(tokenize, batched=True, remove_columns=["text", "messages"])
 
-    # Load model with 4-bit quantization
-    print(f"\nLoading {MODEL_ID} with 4-bit QLoRA quantization...")
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    )
-
+    # Load model
     print("Using SDPA (PyTorch native scaled dot-product attention).")
-    model = AutoModelForSequenceClassification.from_pretrained(
-        MODEL_ID,
-        num_labels=2,
-        quantization_config=bnb_config,
-        device_map="auto",
-        attn_implementation="sdpa",
-    )
+    if args.no_quantize:
+        print(f"\nLoading {MODEL_ID} in bf16 (no quantization)...")
+        model = AutoModelForSequenceClassification.from_pretrained(
+            MODEL_ID,
+            num_labels=2,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+            attn_implementation="sdpa",
+        )
+    else:
+        print(f"\nLoading {MODEL_ID} with 4-bit QLoRA quantization...")
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            MODEL_ID,
+            num_labels=2,
+            quantization_config=bnb_config,
+            device_map="auto",
+            attn_implementation="sdpa",
+        )
     # Ensure pad_token_id is set on model config
     model.config.pad_token_id = tokenizer.pad_token_id
     print(f"Model loaded. Parameters: {model.num_parameters():,}")

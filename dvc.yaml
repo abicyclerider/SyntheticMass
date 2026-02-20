@@ -373,6 +373,7 @@ stages:
       --lora-r ${train.lora_r}
       --max-samples ${train.max_samples}
       --max-steps ${train.max_steps}
+      --no-quantize
     params:
     - train.epochs
     - train.batch_size

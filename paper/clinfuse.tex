@@ -71,9 +71,9 @@
 % =====================================================================
 \section{Problem Statement}
 
-A cardiac arrest patient's duplicate record carried someone else's do-not-resuscitate order. The care team withheld life-saving treatment~\cite{ecri2016}. That case is far from unique: patients with duplicate charts are five times more likely to die during hospitalization~\cite{western2026}. Across 7{,}613 wrong-patient events at 181 healthcare organizations, 9\% resulted in patient harm~\cite{ecri2016}. For the emergency department registrar matching an unconscious patient to their records, or the IT staff reconciling patient feeds from dozens of hospitals, these are not edge cases---they are daily realities.
+A cardiac arrest patient's record was confused with another patient's---one who carried a do-not-resuscitate order. The care team withheld life-saving treatment~\cite{ecri2016}. When healthcare systems can't reliably match records to the right patient, people die. Patients with duplicate charts---the most common form of this identity failure---are five times more likely to die during hospitalization~\cite{western2026}. Across 7{,}613 wrong-patient events at 181 healthcare organizations, 9\% resulted in patient harm~\cite{ecri2016}. For the emergency department registrar matching an unconscious patient to their records, or the IT staff reconciling patient feeds from dozens of hospitals, these are not edge cases---they are daily realities.
 
-The scale of the problem matches its severity. An estimated 8--12\% of hospital records are duplicates~\cite{morris2016}, costing the U.S.\ healthcare system \$6.7 billion annually~\cite{blackbook2018}. Match accuracy averages 80--90\% within institutions but falls to 50\% in cross-organizational exchange~\cite{onc2014}---meaning roughly half of cross-organizational duplicates go unresolved. The MATCH~IT Act (H.R.~2002, 2025) sets a 99.9\% matching target~\cite{matchit2025}, and TEFCA v2.1 makes cross-organizational matching critical national infrastructure~\cite{tefca2024}. Closing this gap would resolve 99.8\% of currently-missed cross-organizational duplicates (from 50\% unresolved to 0.1\%). Even conservatively attributing half of the \$6.7B burden to cross-organizational failures, this represents over \$3~billion in recoverable annual waste---alongside the patient harm that fragmented records cause.
+Duplicate records aren't just dangerous---they're pervasive. An estimated 8--12\% of hospital records are duplicates~\cite{morris2016}, costing the U.S.\ healthcare system \$6.7 billion annually~\cite{blackbook2018}. Match accuracy averages 80--90\% within institutions but falls to 50\% in cross-organizational exchange~\cite{onc2014}---meaning roughly half of cross-organizational duplicates go unresolved. The MATCH~IT Act (H.R.~2002, 2025) sets a 99.9\% matching target~\cite{matchit2025}, and TEFCA v2.1 makes cross-organizational matching critical national infrastructure~\cite{tefca2024}. Closing this gap would resolve 99.8\% of currently-missed cross-organizational duplicates (from 50\% unresolved to 0.1\%). Even conservatively attributing half of the \$6.7B burden to cross-organizational failures, this represents over \$3~billion in recoverable annual waste---alongside the patient harm that fragmented records cause.
 
 The barrier isn't better algorithms---it's better information. Any method relying exclusively on demographic fields faces an accuracy ceiling imposed by field quality---over half of duplicate pairs contain misspelled names or mismatched identifiers~\cite{morris2016}. The missing signal is \emph{clinical context}: two records sharing the same disease trajectory, medication regimen, and vital sign patterns are almost certainly the same patient, regardless of demographic discrepancies---but interpreting clinical histories as identity evidence requires medical reasoning that traditional matching systems cannot perform.
 
@@ -106,7 +106,12 @@ LLM~\cite{booster2024,coling2025}---an architecture ClinFuse shares. However,
 these approaches rely on cloud-hosted models with 70B--175B+ parameters,
 incurring per-query costs, introducing latency, and---critically for
 healthcare---requiring patient data to leave the facility, making them
-infeasible under HIPAA and GDPR. Fine-tuned models of comparable size (e.g.,
+infeasible under HIPAA and GDPR. Beyond privacy, the scale of the matching
+problem itself rules out cloud approaches: matching 1~million records requires
+evaluating nearly 500~billion pairwise comparisons---a volume that makes
+per-query API calls infeasible on cost and latency alone, and demands a system
+that screens cheaply at scale and reserves clinical reasoning for only the cases
+that need it. Fine-tuned models of comparable size (e.g.,
 Mistral-7B-Instruct, Qwen-14B) lack medical domain knowledge and underperform
 on clinical text~\cite{prism2024}. A recent healthcare-specific approach
 fine-tunes PubMedBERT with contrastive learning for patient linkage at

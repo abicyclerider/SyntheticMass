@@ -76,6 +76,7 @@ def sample_patients():
             "1975-03-10",
         ],
         "birth_year": [1980, 1980, 1990, 1990, 1975],
+        "gender": ["M", "M", "F", "F", "M"],
     }
     return pd.DataFrame(data)
 

@@ -1,13 +1,13 @@
 generate:
-  population: 1001
+  population: 1000
   seed: 67890
 
 augment:
   assignment_seed: 99
   error_seed: 99
   confusable_pct: 5.0
-  min_errors: 5
-  max_errors: 8
+  min_errors: 8
+  max_errors: 12
   error_weights: '{"name_variation":0.35,"address_error":0.05,"date_variation":0.15,"ssn_error":0.15,"formatting_error":0.00,"missing_data":0.30}'
 
 resolve:

@@ -4,7 +4,7 @@ stages:
     cmd: rm -rf synthea_runner/output/synthea_raw && docker run --rm -e 
       JAVA_OPTS=-Xmx8g -v 
       $(pwd)/synthea_runner/output/synthea_raw:/synthea/synthea/output synthea 
-      /bin/sh -c "./run_synthea -p 5000 -s 67890 
+      /bin/sh -c "./run_synthea -p 1000 -s 67890 
       --exporter.baseDirectory=./output --exporter.csv.export=true 
       --exporter.fhir.export=false Massachusetts"
     deps:
@@ -14,13 +14,13 @@ stages:
       size: 72
     params:
       params.yaml:
-        generate.population: 5000
+        generate.population: 1000
         generate.seed: 67890
     outs:
     - path: synthea_runner/output/synthea_raw/csv
       hash: md5
-      md5: dcc5233307b9d04456fe83683a2e636c.dir
-      size: 4872683745
+      md5: 79a686027ea27a1209bcad7980aff492.dir
+      size: 981538068
       nfiles: 18
   augment:
     cmd: rm -rf output/augmented && docker run --rm -v 
@@ -64,8 +64,8 @@ stages:
       size: 1264
     - path: entity_resolution/core/
       hash: md5
-      md5: 3e0e3f2b35f5fd17058b1054b1089a52.dir
-      size: 81710
+      md5: 74590b5ebb775871639a5b76068dc03a.dir
+      size: 85284
       nfiles: 12
     - path: entity_resolution/requirements-runtime.txt
       hash: md5
@@ -77,8 +77,8 @@ stages:
       size: 10838
     - path: output/augmented
       hash: md5
-      md5: c3c3b558f4b356fece83066b8706c4d5.dir
-      size: 672886477
+      md5: 37cc2c19af913183560e4ddf5392c6b7.dir
+      size: 139516018
       nfiles: 96
     - path: shared/data_loader.py
       hash: md5
@@ -103,8 +103,8 @@ stages:
     outs:
     - path: output/resolved
       hash: md5
-      md5: af1e7da2894896b0ae8f6770c5e66014.dir
-      size: 21752214
+      md5: 520d78f7cd6e2c30b52130a6753bf8f2.dir
+      size: 3236731
       nfiles: 4
   golden_records:
     cmd: rm -rf output/golden_records && docker build -f 
@@ -712,14 +712,14 @@ stages:
       size: 207
     - path: synthea_runner/output/synthea_raw/csv
       hash: md5
-      md5: dcc5233307b9d04456fe83683a2e636c.dir
-      size: 4872683745
+      md5: 79a686027ea27a1209bcad7980aff492.dir
+      size: 981538068
       nfiles: 18
     outs:
     - path: synthea_runner/output/synthea_parquet
       hash: md5
-      md5: e50c5d8d421c7b70346a58f5ca027dd7.dir
-      size: 694429741
+      md5: 046fea0869f26d746b5f77e5f3f860b1.dir
+      size: 143238203
       nfiles: 18
   segment:
     cmd: rm -rf output/segmented && docker build -t augmentation augmentation/ 
@@ -751,8 +751,8 @@ stages:
       size: 207
     - path: synthea_runner/output/synthea_parquet
       hash: md5
-      md5: e50c5d8d421c7b70346a58f5ca027dd7.dir
-      size: 694429741
+      md5: 046fea0869f26d746b5f77e5f3f860b1.dir
+      size: 143238203
       nfiles: 18
     params:
       params.yaml:
@@ -761,8 +761,8 @@ stages:
     outs:
     - path: output/segmented
       hash: md5
-      md5: 223f918f26fab8cd001018e6c22477ad.dir
-      size: 661800496
+      md5: a0d88d0e39702f8d3f7a87ef0f6569e3.dir
+      size: 136131822
       nfiles: 93
   inject_errors:
     cmd: rm -rf output/augmented && docker build -t augmentation augmentation/ 
@@ -770,7 +770,7 @@ stages:
       $(pwd)/output/segmented:/data/input:ro -v 
       $(pwd)/output/augmented:/data/output augmentation -m 
       augmentation.cli.inject_errors --input /data/input --output /data/output 
-      --error-seed 99 --min-errors 5 --max-errors 8 --error-weights 
+      --error-seed 99 --min-errors 8 --max-errors 12 --error-weights 
       '{"name_variation":0.35,"address_error":0.05,"date_variation":0.15,"ssn_error":0.15,"formatting_error":0.00,"missing_data":0.30}'
     deps:
     - path: augmentation/Dockerfile
@@ -796,20 +796,20 @@ stages:
       size: 207
     - path: output/segmented
       hash: md5
-      md5: 223f918f26fab8cd001018e6c22477ad.dir
-      size: 661800496
+      md5: a0d88d0e39702f8d3f7a87ef0f6569e3.dir
+      size: 136131822
       nfiles: 93
     params:
       params.yaml:
         augment.error_seed: 99
         augment.error_weights: '{"name_variation":0.35,"address_error":0.05,"date_variation":0.15,"ssn_error":0.15,"formatting_error":0.00,"missing_data":0.30}'
-        augment.max_errors: 8
-        augment.min_errors: 5
+        augment.max_errors: 12
+        augment.min_errors: 8
     outs:
     - path: output/augmented
       hash: md5
-      md5: c3c3b558f4b356fece83066b8706c4d5.dir
-      size: 672886477
+      md5: 37cc2c19af913183560e4ddf5392c6b7.dir
+      size: 139516018
       nfiles: 96
   build_gpu_image:
     cmd: 'mkdir -p .build && docker buildx imagetools inspect ghcr.io/abicyclerider/medgemma-pipeline:sha-$(git
@@ -823,16 +823,16 @@ stages:
       size: 1512
     - path: llm_classifier/_runpod.py
       hash: md5
-      md5: ca4711cd88768c3f13b39d0569d61d37
-      size: 855
+      md5: 67ade95d7ac020f540803839d4026493
+      size: 2311
     - path: llm_classifier/export_model.py
       hash: md5
-      md5: 1bafe871e8f52601c68175b6ee85a469
-      size: 9746
+      md5: 61fb4e7e74a6d5b2681f6a94bbb8f079
+      size: 9825
     - path: llm_classifier/infer_classifier.py
       hash: md5
-      md5: e377a1df0c3fae88e1d401eaed46bccf
-      size: 15038
+      md5: 227e16d18001753c7016e1d53c2644e1
+      size: 15192
     - path: llm_classifier/prepare_base_model.py
       hash: md5
       md5: b3bb8ce10a051da5feca425682f4f96c
@@ -843,10 +843,10 @@ stages:
       size: 186
     - path: llm_classifier/train_classifier.py
       hash: md5
-      md5: df056675c84da13ed00ce554725fef23
-      size: 12695
+      md5: baba71d6880c61a1192c8dfa800560f8
+      size: 12805
     outs:
     - path: .build/gpu-image.iid
       hash: md5
-      md5: 92080c5aad9e5a20fc767bdf565d2308
+      md5: 16363d8054df5db37f28e6fa97cd5cf6
       size: 45

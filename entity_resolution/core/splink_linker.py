@@ -15,6 +15,81 @@ from splink import ColumnExpression, DuckDBAPI, Linker, SettingsCreator, block_o
 
 logger = logging.getLogger(__name__)
 
+# Soundex lookup: consonant → digit mapping (American Soundex)
+_SOUNDEX_MAP = {
+    c: d
+    for d, chars in [
+        ("1", "BFPV"),
+        ("2", "CGJKQSXZ"),
+        ("3", "DT"),
+        ("4", "L"),
+        ("5", "MN"),
+        ("6", "R"),
+    ]
+    for c in chars
+}
+
+
+def _soundex(name: str) -> str:
+    """Compute American Soundex code for a name (4 characters)."""
+    if not name:
+        return ""
+    name = name.upper()
+    code = name[0]
+    prev = _SOUNDEX_MAP.get(name[0], "0")
+    for c in name[1:]:
+        m = _SOUNDEX_MAP.get(c, "0")
+        if m != "0" and m != prev:
+            code += m
+        if m != "0":
+            prev = m
+        elif c not in ("H", "W"):
+            prev = "0"
+        if len(code) == 4:
+            break
+    return (code + "0000")[:4]
+
+
+# Reverse nickname map: nickname → canonical form (for blocking normalization)
+# Source: augmentation/errors/demographic_errors.py NicknameSubstitution.NICKNAME_MAP
+_NICKNAME_TO_CANONICAL = {
+    "BILL": "WILLIAM", "BOB": "ROBERT", "DICK": "RICHARD", "JIM": "JAMES",
+    "JACK": "JOHN", "MIKE": "MICHAEL", "DAVE": "DAVID", "JOE": "JOSEPH",
+    "TOM": "THOMAS", "CHUCK": "CHARLES", "CHRIS": "CHRISTOPHER",
+    "DAN": "DANIEL", "MATT": "MATTHEW", "TONY": "ANTHONY", "DON": "DONALD",
+    "KEN": "KENNETH", "STEVE": "STEVEN", "ED": "EDWARD", "TIM": "TIMOTHY",
+    "JEFF": "JEFFREY", "NICK": "NICHOLAS", "JON": "JONATHAN",
+    "BEN": "BENJAMIN", "SAM": "SAMUEL", "ALEX": "ALEXANDER",
+    "ANDY": "ANDREW", "JOSH": "JOSHUA", "LIZ": "ELIZABETH",
+    "PAT": "PATRICIA", "JENNY": "JENNIFER", "LYNN": "LINDA",
+    "BARB": "BARBARA", "SUE": "SUSAN", "JESS": "JESSICA",
+    "PEGGY": "MARGARET", "SALLY": "SARAH", "KIM": "KIMBERLY",
+    "DEB": "DEBORAH", "BECKY": "REBECCA", "STEPH": "STEPHANIE",
+    "CATHY": "CATHERINE", "MANDY": "AMANDA", "MEL": "MELISSA",
+    "SHELLY": "MICHELLE", "KATHY": "KATHLEEN", "DOT": "DOROTHY",
+}
+
+
+def _normalize_first_name(name: str) -> str:
+    """Normalize first name by mapping nicknames back to canonical forms."""
+    if not name:
+        return name
+    upper = name.upper().strip()
+    return _NICKNAME_TO_CANONICAL.get(upper, upper)
+
+
+def _add_soundex_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Add precomputed soundex columns for phonetic blocking.
+
+    First names are nickname-normalized before computing soundex so that
+    e.g. "Bill" and "William" produce the same phonetic code.
+    """
+    df = df.copy()
+    normalized_first = df["first_name"].fillna("").apply(_normalize_first_name)
+    df["soundex_first_name"] = normalized_first.apply(_soundex)
+    df["soundex_last_name"] = df["last_name"].fillna("").apply(_soundex)
+    return df
+
 
 def build_settings(config: dict) -> SettingsCreator:
     """Build Splink SettingsCreator with comparisons and blocking rules.
@@ -49,6 +124,9 @@ def build_settings(config: dict) -> SettingsCreator:
     # Substring expressions for fuzzy blocking (catches typos in names)
     last_name_3 = ColumnExpression("substr(last_name, 1, 3)")
     first_name_3 = ColumnExpression("substr(first_name, 1, 3)")
+    first_name_1 = ColumnExpression("substr(first_name, 1, 1)")
+    last_name_1 = ColumnExpression("substr(last_name, 1, 1)")
+    gender_col = ColumnExpression("gender")
 
     blocking_rules = [
         block_on("last_name", "city"),
@@ -69,6 +147,20 @@ def build_settings(config: dict) -> SettingsCreator:
         block_on(last_name_3, "birth_year"),
         block_on("zip"),
         block_on("city"),
+        # Gender is never corrupted — combine with partial fields for resilience
+        block_on(gender_col, "birth_year"),
+        block_on(gender_col, first_name_3),
+        block_on(gender_col, last_name_3),
+        # First-letter blocking: first char preserved by typos (not nicknames)
+        # gender × 26 × 26 ≈ 1352 buckets — catches multi-char typo pairs
+        block_on(gender_col, first_name_1, last_name_1),
+        # Phonetic blocking: survives typos better than substr
+        # (soundex_first_name / soundex_last_name are precomputed columns)
+        block_on("soundex_first_name", "soundex_last_name"),
+        block_on(gender_col, "soundex_first_name"),
+        block_on(gender_col, "soundex_last_name"),
+        block_on("soundex_first_name", "birth_year"),
+        block_on("soundex_last_name", "birth_year"),
     ]
 
     splink_cfg = config.get("splink", {})
@@ -97,6 +189,7 @@ def create_linker(df: pd.DataFrame, config: dict) -> tuple:
         (linker, predict_threshold) tuple.
     """
     settings, predict_threshold = build_settings(config)
+    df = _add_soundex_columns(df)
     linker = Linker(df, settings, db_api=DuckDBAPI())
     return linker, predict_threshold
 

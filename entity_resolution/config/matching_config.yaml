@@ -3,20 +3,20 @@
 
 # Splink v4 probabilistic linkage settings
 splink:
-  predict_threshold: 0.01       # Minimum match probability to keep as candidate
+  predict_threshold: 0.0001     # Minimum match probability to keep as candidate
   auto_match_probability: 0.99  # P >= 0.99 → definite match
-  auto_reject_probability: 0.01 # P < 0.01 → definite non-match
+  auto_reject_probability: 0.0001 # P < 0.0001 → definite non-match
 
 # Gray zone: logit-space combination of Splink probability + LLM confidence
 gray_zone:
   w_splink: 1.0     # weight on Splink log-odds
-  w_llm: 1.0        # weight on LLM log-odds
-  threshold: 0.0     # combined logit threshold (0.0 = 50/50 odds)
+  w_llm: 1.5        # weight on LLM log-odds (LLM more reliable than demographics with heavy errors)
+  threshold: -5.5    # combined logit threshold (grid-searched on 1k patient eval)
   min_splink_probability: 0.0  # floor: disabled (no veto)
   # Bayesian prior correction: shifts LLM logit to account for training vs
   # production base rate mismatch.  correction = logit(gz_prior) - logit(train_prior)
   llm_training_prior: 0.5    # base rate in LLM training data (balanced 50/50)
-  gray_zone_prior: 0.025     # estimated true-match rate in the gray zone
+  gray_zone_prior: 0.01      # estimated true-match rate in the gray zone
 
 # Golden record creation
 golden_record:

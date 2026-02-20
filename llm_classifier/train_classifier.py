@@ -21,6 +21,7 @@ import mlflow
 import numpy as np
 import pandas as pd
 import torch
+from _runpod import setup_logging, stop_runpod_pod, upload_log
 from datasets import Dataset, load_dataset
 from peft import LoraConfig, get_peft_model
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
@@ -32,8 +33,6 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
-
-from _runpod import setup_logging, stop_runpod_pod, upload_log
 
 MODEL_ID = "abicyclerider/medgemma-4b-text-only-base"
 DATASET_REPO = "abicyclerider/entity-resolution-pairs"

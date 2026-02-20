@@ -28,13 +28,13 @@ Usage:
 """
 
 import argparse
-import os
 import sys
 import time
 
 import numpy as np
 import pandas as pd
 import torch
+from _runpod import setup_logging, stop_runpod_pod, upload_log
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -42,8 +42,6 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-
-from _runpod import setup_logging, stop_runpod_pod, upload_log
 
 MODEL_ID = "abicyclerider/medgemma-4b-entity-resolution-text-only"
 DATASET_REPO = "abicyclerider/entity-resolution-pairs"

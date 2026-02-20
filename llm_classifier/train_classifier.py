@@ -36,18 +36,6 @@ from transformers import (
 from _runpod import setup_logging, stop_runpod_pod, upload_log
 
 MODEL_ID = "abicyclerider/medgemma-4b-text-only-base"
-
-
-def _flash_attn_available() -> bool:
-    """Check if Flash Attention 2 is installed and usable."""
-    try:
-        import flash_attn  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
-
-
 DATASET_REPO = "abicyclerider/entity-resolution-pairs"
 ADAPTER_REPO = "abicyclerider/medgemma-4b-entity-resolution-classifier"
 CHECKPOINT_REPO = "abicyclerider/medgemma-4b-er-classifier-checkpoints"
@@ -167,19 +155,13 @@ def main():
         bnb_4bit_compute_dtype=torch.bfloat16,
     )
 
-    load_kwargs = {}
-    if _flash_attn_available():
-        print("Flash Attention 2 enabled.")
-        load_kwargs["attn_implementation"] = "flash_attention_2"
-    else:
-        print("Flash Attention 2 not installed — using default attention.")
-
+    print("Using SDPA (PyTorch native scaled dot-product attention).")
     model = AutoModelForSequenceClassification.from_pretrained(
         MODEL_ID,
         num_labels=2,
         quantization_config=bnb_config,
         device_map="auto",
-        **load_kwargs,
+        attn_implementation="sdpa",
     )
     # Ensure pad_token_id is set on model config
     model.config.pad_token_id = tokenizer.pad_token_id

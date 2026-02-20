@@ -26,11 +26,6 @@ RUN pip install --no-cache-dir \
     torch==2.6.0 torchvision==0.21.0 \
     --index-url https://download.pytorch.org/whl/cu124
 
-# Install flash-attn from source (--no-build-isolation because setup.py imports torch).
-# Pre-install all its build-time deps: packaging, psutil, ninja.
-RUN pip install --no-cache-dir packaging psutil ninja && \
-    pip install --no-cache-dir --no-build-isolation "flash-attn>=2.5.0"
-
 # Install remaining Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

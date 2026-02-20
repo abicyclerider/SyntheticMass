@@ -33,7 +33,7 @@ from transformers import (
     TrainingArguments,
 )
 
-from _runpod import stop_runpod_pod
+from _runpod import setup_logging, stop_runpod_pod, upload_log
 
 MODEL_ID = "abicyclerider/medgemma-4b-text-only-base"
 
@@ -352,11 +352,13 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging()
     try:
         main()
     except Exception:
         import traceback
 
         traceback.print_exc()
+        upload_log(ADAPTER_REPO)
         stop_runpod_pod()
         raise SystemExit(1)

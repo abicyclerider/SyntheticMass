@@ -30,7 +30,7 @@ os.environ["TORCHINDUCTOR_COMPILE_THREADS"] = "1"
 
 import torch
 
-from _runpod import stop_runpod_pod
+from _runpod import setup_logging, stop_runpod_pod, upload_log
 
 BASE_MODEL_ID = "abicyclerider/medgemma-4b-text-only-base"
 ADAPTER_REPO = "abicyclerider/medgemma-4b-entity-resolution-classifier"
@@ -275,11 +275,13 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging()
     try:
         main()
     except Exception:
         import traceback
 
         traceback.print_exc()
+        upload_log(OUTPUT_REPO)
         stop_runpod_pod()
         raise SystemExit(1)

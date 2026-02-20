@@ -43,7 +43,7 @@ from sklearn.metrics import (
     recall_score,
 )
 
-from _runpod import stop_runpod_pod
+from _runpod import setup_logging, stop_runpod_pod, upload_log
 
 MODEL_ID = "abicyclerider/medgemma-4b-entity-resolution-text-only"
 DATASET_REPO = "abicyclerider/entity-resolution-pairs"
@@ -423,9 +423,15 @@ def main():
                 args.batch_size,
                 args.max_length,
             )
+    except Exception:
+        import traceback
+
+        traceback.print_exc()
+        upload_log(MODEL_ID)
     finally:
         stop_runpod_pod()
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

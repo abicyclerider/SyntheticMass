@@ -1,0 +1,11 @@
+# Dependencies for running analysis/results.ipynb
+# Install: pip install -r analysis/requirements.txt
+# The notebook also requires the project itself: pip install -e .
+matplotlib==3.10.8
+seaborn==0.13.2
+numpy==2.4.2
+pandas==2.3.3
+pyarrow==22.0.0
+networkx==3.6.1
+jupyter==1.1.1
+ipython==9.10.0

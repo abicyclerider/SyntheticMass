@@ -236,6 +236,10 @@ llm_classifier/.state/
 .vscode/
 .idea/
 
+# Analysis notebook build artifacts
+analysis/*.html
+analysis/*.png
+
 # LaTeX build artifacts
 *.aux
 *.log

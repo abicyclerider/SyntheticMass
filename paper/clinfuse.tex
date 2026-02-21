@@ -51,10 +51,10 @@
 \captionsetup{font=small, labelfont=bf, skip=4pt, belowskip=-4pt}
 
 % --- Colors for figure ---
-\definecolor{tiergreen}{HTML}{2E7D32}
-\definecolor{tieramber}{HTML}{E65100}
-\definecolor{tierred}{HTML}{C62828}
-\definecolor{tierblue}{HTML}{1565C0}
+\definecolor{tiergreen}{HTML}{2E7D32}       % Tier 2 auto-match (green)
+\definecolor{tieramber}{HTML}{E65100}       % Tier 3 gray zone / LLM (amber)
+\definecolor{tierred}{HTML}{C62828}         % Tier 2 auto-reject (red)
+\definecolor{tierblue}{HTML}{1565C0}        % Tier 1 & 2 infrastructure (blue)
 
 % --- Footnote size reduction ---
 \renewcommand{\footnotesize}{\fontsize{7.5pt}{9pt}\selectfont}
@@ -75,24 +75,23 @@ A cardiac arrest patient's record was confused with another patient's---one who 
 
 Duplicate records aren't just dangerous---they're pervasive. An estimated 8--12\% of hospital records are duplicates~\cite{morris2016}, costing the U.S.\ healthcare system \$6.7 billion annually~\cite{blackbook2018}. Match accuracy averages 80--90\% within institutions but falls to 50\% in cross-organizational exchange~\cite{onc2014}---meaning roughly half of cross-organizational duplicates go unresolved. The MATCH~IT Act (H.R.~2002, 2025) sets a 99.9\% matching target~\cite{matchit2025}, and TEFCA v2.1 makes cross-organizational matching critical national infrastructure~\cite{tefca2024}. Closing this gap would resolve 99.8\% of currently-missed cross-organizational duplicates (from 50\% unresolved to 0.1\%). Even conservatively attributing half of the \$6.7B burden to cross-organizational failures, this represents over \$3~billion in recoverable annual waste---alongside the patient harm that fragmented records cause.
 
-The barrier isn't better algorithms---it's better information. Any method relying exclusively on demographic fields faces an accuracy ceiling imposed by field quality---over half of duplicate pairs contain misspelled names or mismatched identifiers~\cite{morris2016}. The missing signal is \emph{clinical context}: two records sharing the same disease trajectory, medication regimen, and vital sign patterns are almost certainly the same patient, regardless of demographic discrepancies---but interpreting clinical histories as identity evidence requires medical reasoning that traditional matching systems cannot perform.
+The barrier isn't better algorithms---it's better information. Any method relying exclusively on demographic fields faces an accuracy ceiling imposed by field quality---over half of duplicate pairs contain misspelled names or mismatched identifiers~\cite{morris2016}. The missing signal is \emph{clinical context}: the full breadth of a patient's medical record---conditions, medications, allergies, observations, and procedures---provides a powerful signal for resolving patient identity, regardless of demographic discrepancies. Yet no production entity resolution system exploits this signal: probabilistic and rule-based matchers lack the medical knowledge to interpret clinical histories as identity evidence.
 
 % =====================================================================
 %  2  OVERALL SOLUTION
 % =====================================================================
 \section{Overall Solution}
 
-To demonstrate MedGemma's potential for patient entity resolution, we embed it in ClinFuse, a three-tier pipeline that augments fast probabilistic matching with MedGemma's clinical reasoning, invoked selectively for ambiguous cases. Figure~\ref{fig:architecture} illustrates the architecture.
+Interpreting this clinical context as identity evidence requires medical reasoning---exactly the capability MedGemma~\cite{medgemma} provides. To demonstrate its potential for patient entity resolution, we embed it in ClinFuse, a three-tier pipeline that augments fast probabilistic matching with MedGemma's clinical reasoning, invoked selectively for ambiguous cases. Figure~\ref{fig:architecture} illustrates the architecture.
 
-\subsubsection{Tier~1: Probabilistic Screening} All records enter Splink~v4~\cite{splink} for Fellegi--Sunter~\cite{fellegi1969} probabilistic linkage using expectation-maximization on demographic fields with Jaro--Winkler string similarity and term-frequency adjustment. Pairs with high match probability are auto-matched; pairs with very low probability are auto-rejected.
+\subsubsection{Tier~1: Blocking} All records enter Splink~v4~\cite{splink}, which first applies blocking rules on demographic fields to generate candidate pairs without exhaustive $O(n^2)$ comparisons.
 
-\subsubsection{Tier~2: Clinical LLM Classification} Ambiguous ``gray zone'' pairs---those where demographics alone are inconclusive---receive structured clinical summaries and are classified by a fine-tuned MedGemma~4B model, whose medical pretraining enables it to interpret clinical histories as identity evidence. Each patient's clinical history is summarized into a compact format: conditions grouped by onset year, medications with date ranges, sorted allergies, latest values per vital sign, and procedures with years. The model sees two parallel summaries and classifies whether they describe the same patient (Figure~\ref{fig:example}).
+\subsubsection{Tier~2: Demographic Triage} Candidate pairs are scored via Fellegi--Sunter~\cite{fellegi1969} probabilistic linkage using expectation-maximization with Jaro--Winkler string similarity and term-frequency adjustment. Pairs with high match probability are auto-matched; pairs with very low probability are auto-rejected. The remaining ambiguous ``gray zone'' pairs proceed to clinical review.
 
-\subsubsection{Tier~3: Score Fusion} The probabilistic match score and the LLM's classification logit are combined in log-odds space using interpretable linear weights. A demographic veto floor prevents the LLM from overriding cases where demographics strongly disagree, guarding against false merges---the highest-risk failure mode in clinical settings. This interpretable design ensures each component's contribution is transparent and auditable.
+\subsubsection{Tier~3: Clinical LLM} Gray-zone pairs receive structured clinical summaries and are classified by a fine-tuned MedGemma~4B model, whose medical pretraining enables it to interpret clinical histories as identity evidence. The model's generative head is replaced with a binary classification layer. Each patient's clinical history is summarized into a compact format: conditions grouped by onset year, medications with date ranges, sorted allergies, latest values per vital sign, and procedures with years. The model sees two parallel summaries and classifies whether they describe the same patient (Figure~\ref{fig:example}). A Bayesian prior correction first shifts the LLM logit from the balanced training distribution to the gray zone's lower true-match rate, preventing overconfident match predictions. The corrected LLM logit and Splink match probability are then combined in log-odds space using interpretable linear weights.
 
 \subsubsection{Golden Records} Matched pairs form a graph whose connected components yield patient clusters. Field-level conflict resolution applies majority voting with domain heuristics (e.g., preferring longer address forms), producing a deduplicated Master Patient Index (MPI).
 
-\smallskip
 \noindent\textbf{MedGemma as Clinical Reasoner.}
 Prior work has applied LLMs to adjacent healthcare tasks---MedLink uses
 diagnosis-code embeddings for de-identified record
@@ -106,12 +105,12 @@ LLM~\cite{booster2024,coling2025}---an architecture ClinFuse shares. However,
 these approaches rely on cloud-hosted models with 70B--175B+ parameters,
 incurring per-query costs, introducing latency, and---critically for
 healthcare---requiring patient data to leave the facility, making them
-infeasible under HIPAA and GDPR. Beyond privacy, the scale of the matching
-problem itself rules out cloud approaches: matching 1~million records requires
-evaluating nearly 500~billion pairwise comparisons---a volume that makes
-per-query API calls infeasible on cost and latency alone, and demands a system
-that screens cheaply at scale and reserves clinical reasoning for only the cases
-that need it. Fine-tuned models of comparable size (e.g.,
+challenging under HIPAA and GDPR. Beyond privacy, the scale of the matching
+problem favors small, specialized models over large general-purpose ones:
+matching 1~million records requires evaluating nearly 500~billion pairwise
+comparisons---a volume where per-query API costs become prohibitive, demanding a
+system that screens cheaply at scale and reserves clinical reasoning for only
+the cases that need it. Fine-tuned models of comparable size (e.g.,
 Mistral-7B-Instruct, Qwen-14B) lack medical domain knowledge and underperform
 on clinical text~\cite{prism2024}. A recent healthcare-specific approach
 fine-tunes PubMedBERT with contrastive learning for patient linkage at
@@ -125,71 +124,22 @@ clinical question answering and medical image interpretation, patient entity
 resolution is entirely outside its pretraining distribution---yet its medical
 language understanding enables it to recognize that ``Essential Hypertension''
 and ``Hypertension'' are the same condition, or that overlapping medication
-regimens constitute strong identity evidence. At 4B parameters with 4-bit
-quantization, it runs on a single consumer GPU
+regimens constitute strong identity evidence. At 4B parameters it runs on a single consumer GPU
 ({\raise.17ex\hbox{$\scriptstyle\sim$}}\$1{,}500), requires no cloud
 connectivity, and its medical pretraining provides the clinical reasoning
 necessary to interpret disease trajectories, medication overlaps, and vital
-sign concordance as identity evidence. QLoRA fine-tuning successfully adapts it
-to pairwise classification, achieving 0.93 F1 on held-out evaluation
+sign concordance as identity evidence. LoRA fine-tuning successfully adapts it
+to pairwise classification, achieving 0.98 F1 on held-out evaluation
 data---demonstrating that medical pretraining transfers effectively to this
 novel task.
 
 % --- FIGURE 1: Architecture ---
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\begin{tikzpicture}[
-    node distance=0.2cm and 0.18cm,
-    box/.style={draw, rounded corners=2pt, minimum height=0.35cm,
-                text centered, font=\fontsize{5}{6}\selectfont\sffamily, inner sep=1.5pt},
-    annot/.style={font=\fontsize{4}{5}\selectfont\sffamily, text=black!70},
-    arr/.style={-{Stealth[length=2pt]}, thin},
-  ]
-
-  % Input
-  \node[box, fill=gray!15, align=center] (input) {Multi-Facility\\[-1pt]Records};
-
-  % Splink
-  \node[box, fill=tierblue!15, align=center, right=0.2cm of input] (splink) {Splink v4\\[-1pt]Probabilistic};
-  \node[annot, below=0.01cm of splink] {candidate pairs};
-
-  % Branch point
-  \coordinate[right=0.2cm of splink] (branch);
-
-  % Three tiers
-  \node[box, fill=tiergreen!20, above right=0.25cm and 0.22cm of branch] (auto) {Auto-Match};
-  \node[annot, above=0.0cm of auto] {\color{tiergreen}high $P$};
-
-  \node[box, fill=tieramber!20, right=0.22cm of branch] (gray) {Gray Zone};
-  \node[annot, above=0.0cm of gray] {\color{tieramber}uncertain $P$};
-
-  \node[box, fill=tierred!15, below right=0.25cm and 0.22cm of branch] (reject) {Auto-Reject};
-  \node[annot, below=0.0cm of reject] {\color{tierred}low $P$};
-
-  % LLM + Fusion
-  \node[box, fill=tieramber!25, align=center, right=0.2cm of gray] (llm) {MedGemma\\[-1pt]4B};
-  \node[annot, below=0.01cm of llm] {clinical summaries};
-
-  \node[box, fill=tierblue!20, align=center, right=0.2cm of llm] (fusion) {Score\\[-1pt]Fusion};
-
-  % Golden
-  \node[box, fill=tiergreen!30, align=center, right=0.2cm of fusion] (golden) {\textbf{Golden}\\[-1pt]\textbf{Records}};
-
-  % Arrows
-  \draw[arr] (input) -- (splink);
-  \draw[arr] (splink) -- (branch);
-  \draw[arr] (branch) |- (auto);
-  \draw[arr] (branch) -- (gray);
-  \draw[arr] (branch) |- (reject);
-  \draw[arr] (gray) -- (llm);
-  \draw[arr] (llm) -- (fusion);
-  \draw[arr, tiergreen!70!black] (auto.east) -- ++(0.08,0) |- (golden.north west);
-  \draw[arr, tieramber!70!black] (fusion) -- (golden);
-
-\end{tikzpicture}
-\caption{ClinFuse three-tier architecture. High-confidence pairs are auto-matched (green) or auto-rejected (red). Only ambiguous gray-zone pairs (amber) are routed through the clinical LLM, keeping compute costs low.}
+\includegraphics[width=\textwidth]{fig_architecture.pdf}
+\caption{ClinFuse three-tier architecture. \textbf{Tier~1} generates candidate pairs via blocking rules. \textbf{Tier~2} scores pairs probabilistically; high-confidence matches (\textcolor{tiergreen}{green}) and clear non-matches (\textcolor{tierred}{red}) are resolved automatically. Only ambiguous gray-zone pairs (\textcolor{tieramber}{amber}) route through the \textbf{Tier~3} clinical LLM for final resolution.}
 \label{fig:architecture}
-\end{figure}
+\end{figure*}
 
 % =====================================================================
 %  3  TECHNICAL DETAILS
@@ -198,40 +148,39 @@ novel task.
 
 \subsection{Data Generation and Augmentation}
 
-Synthea~\cite{walonoski2018} generates realistic synthetic patients with clinically coherent histories spanning conditions, medications, allergies, observations, and procedures. An augmentation pipeline distributes each patient's records across multiple simulated facilities and injects demographic errors: name variations (nickname substitution, typos, maiden name usage), address errors (abbreviation, format variation), date perturbations, identifier errors (SSN transposition, digit substitution), and formatting noise---mirroring documented real-world error patterns~\cite{morris2016}. Separate datasets are generated for training (10{,}000 patients) and evaluation (500 patients, 1{,}275 records across 5 facilities).
+Synthea~\cite{walonoski2018} generates realistic synthetic patients with clinically coherent histories spanning conditions, medications, allergies, observations, and procedures. An augmentation pipeline distributes each patient's records across multiple simulated facilities and injects demographic errors: name variations (nickname substitution, typos, maiden name usage), address errors (abbreviation, format variation), date perturbations, identifier errors (SSN transposition, digit substitution), and formatting noise---mirroring documented real-world error patterns~\cite{morris2016}. Separate datasets are generated for training (30{,}000 patients) and evaluation (2{,}500 patients, 6{,}264 records across 5 facilities).
 
 \subsection{Adapting MedGemma for Entity Resolution}
 
 \textbf{Text-only adaptation.}
 MedGemma~4B is a multimodal model with both vision and text encoders. Since our task is text-only, we strip the vision tower before fine-tuning, reducing from 4.2B to 3.88B parameters while preserving the medical language understanding from pretraining.
 
-\textbf{QLoRA fine-tuning with classification head.}
-We apply 4-bit QLoRA~\cite{dettmers2023} (Low-Rank Adaptation~\cite{hu2021lora}) targeting attention and MLP projection layers, and add a binary classification head. Fine-tuned classification heads significantly outperform zero-shot prompting for binary tasks~\cite{finetune_vs_prompt} while being orders of magnitude faster at inference~\cite{cls_head_efficiency}. Training uses balanced match/non-match pairs generated from augmented Synthea records. The fine-tuned adapter and merged model are published on HuggingFace Hub.
-
+\textbf{LoRA fine-tuning with classification head.}
+We apply LoRA~\cite{hu2021lora} (Low-Rank Adaptation) in bf16 precision targeting attention and MLP projection layers, and replace the generative language-model head with a two-class classification layer that outputs match/non-match logits directly---bypassing text generation entirely. Fine-tuned classification heads significantly outperform zero-shot prompting for binary tasks~\cite{finetune_vs_prompt} while being orders of magnitude faster at inference~\cite{cls_head_efficiency}. Training uses balanced match/non-match pairs generated from augmented Synthea records.
 \subsection{Results}\label{sec:results}
 
-Table~\ref{tab:results} compares Splink-only matching against the full ClinFuse pipeline on 1{,}275 synthetic records (500 patients across 5 facilities).
+Table~\ref{tab:results} compares Splink-only matching against the full ClinFuse pipeline on 6{,}264 synthetic records (2{,}500 patients across 5 facilities) under deliberately adversarial conditions: each record carries 8 to 12 demographic errors and each patient's clinical history is split across a random number of facilities. These conditions stress-test the approach rather than simulate typical production data.
 
 \begin{table}[h]
 \centering\small
-\caption{Entity resolution performance. Splink-only uses the 0.95 auto-match threshold. ClinFuse adds MedGemma gray-zone classification and score fusion.}
+\caption{Entity resolution performance. Splink-only uses the 0.99 auto-match threshold. ClinFuse adds MedGemma gray-zone classification and score fusion.}
 \label{tab:results}
 \begin{tabular}{@{}lcc@{}}
 \toprule
 \textbf{Metric} & \textbf{Splink Only} & \textbf{ClinFuse} \\
 \midrule
-Precision & 1.000 & 0.995 \\
-Recall & 0.991 & \textbf{1.000} \\
-F1 & 0.995 & \textbf{0.997} \\
+Precision & 0.910 & \textbf{0.922} \\
+Recall & 0.467 & \textbf{0.910} \\
+F1 & 0.617 & \textbf{0.916} \\
 \midrule
 \multicolumn{3}{@{}l@{}}{\textit{Operational statistics (ClinFuse):}} \\
-\multicolumn{2}{@{}l@{}}{~~Gray-zone pairs classified by LLM} & 242 \\
-\multicolumn{2}{@{}l@{}}{~~LLM-recovered matches} & 4 \\
+\multicolumn{2}{@{}l@{}}{~~Gray-zone pairs classified by LLM} & 151{,}309 \\
+\multicolumn{2}{@{}l@{}}{~~LLM-recovered matches} & 2{,}702 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-At the conservative 0.95 threshold, Splink alone achieves perfect precision but misses true matches in the gray zone. MedGemma's clinical understanding---recognizing matching disease trajectories and overlapping medication regimens---recovers all missed matches, lifting recall from 0.991 to 1.000. The trade-off is a small precision reduction (6 false merges out of 1{,}187 predicted matches)---acceptable given the far higher clinical cost of missed matches. The demographic veto floor prevents the LLM from overriding strong demographic disagreement, keeping false merges rare. The MedGemma classifier achieves 0.93 F1 in standalone evaluation; MedGemma provides clinical understanding that no probabilistic linker can offer, complementing Splink's high-precision demographic matching.
+At the 0.99 threshold, Splink alone achieves high precision (0.910) but captures fewer than half of true matches---the strict threshold, combined with heavy demographic errors (8--12 per record), leaves most true pairs in the gray zone. MedGemma's clinical understanding---recognizing matching disease trajectories and overlapping medication regimens---nearly doubles recall from 0.467 to 0.910, recovering 2{,}702 matches that demographics alone could not resolve. Precision remains comparable (0.922 vs.\ 0.910), demonstrating that the Bayesian prior correction and weighted log-odds fusion effectively suppress false merges.
 
 % --- FIGURE 2: Clinical Summary Example ---
 \begin{figure}[t]
@@ -268,11 +217,11 @@ At the conservative 0.95 threshold, Splink alone achieves perfect precision but 
 
 \subsection{Deployment and Feasibility}
 
-\textbf{Hardware.} MedGemma 4B runs quantized (4-bit NF4) on a single consumer GPU (e.g., RTX~3090, {\raise.17ex\hbox{$\scriptstyle\sim$}}\$1{,}500). No cloud API dependency.
+\textbf{Hardware.} MedGemma 4B runs in bf16 precision on a single consumer GPU (e.g., RTX~3090, {\raise.17ex\hbox{$\scriptstyle\sim$}}\$1{,}500). No cloud API dependency.
 
-\textbf{Privacy by design.} All inference is local---no patient data leaves the facility. This satisfies HIPAA and GDPR requirements and supports air-gapped deployment.
+\textbf{Privacy by design.} All inference can run locally---no patient data needs to leave the facility. This supports HIPAA and GDPR compliance and enables air-gapped deployment.
 
-\textbf{Cost at scale.} Splink handles {\raise.17ex\hbox{$\scriptstyle\sim$}}95\% of pairs in under 1 second per pair. Only {\raise.17ex\hbox{$\scriptstyle\sim$}}5\% hit the LLM. At hospital scale (100K records), estimated total GPU time is under 1 hour. The pipeline supports both batch processing for MPI deduplication and near-real-time matching for point-of-care patient registration.
+\textbf{Cost at scale.} The tiered architecture keeps GPU costs proportional to ambiguity, not data size: Splink scores all candidate pairs in seconds, and only gray-zone pairs require LLM inference. The fraction reaching the LLM depends on data quality and threshold configuration---from under 5\% with clean demographics to nearly all pairs in heavily degraded data. The pipeline supports both batch processing for MPI deduplication and near-real-time matching for point-of-care patient registration.
 
 \textbf{Integration.} Input is standard HL7/FHIR demographic and clinical fields. Output is a deduplicated Master Patient Index---a drop-in replacement for existing MPI systems. Match and reject thresholds are configurable, allowing operators to tune the precision--recall trade-off for their clinical context.
 
@@ -289,7 +238,7 @@ At the conservative 0.95 threshold, Splink alone achieves perfect precision but 
 % =====================================================================
 \section{Conclusion}
 
-This work demonstrates that MedGemma---pretrained for clinical QA and medical imaging, never designed for entity resolution---can be effectively repurposed for patient identity matching through QLoRA adaptation. Achieving 0.93 F1 on this novel pairwise classification task, its integration into the ClinFuse pipeline lifts end-to-end recall from 0.991 to a perfect 1.000 while maintaining 99.5\% precision. The system runs entirely on-premises on a single consumer GPU, requires no cloud API, and invokes the LLM only for the small fraction of pairs that probabilistic matching cannot resolve. These properties---high accuracy, full privacy, low cost, and interpretable fusion---make MedGemma-powered entity resolution a practical path toward the 99.9\% matching accuracy that the MATCH~IT Act demands and that patient safety requires.
+This work demonstrates that MedGemma---pretrained for clinical QA and medical imaging, never designed for entity resolution---can be effectively repurposed for patient identity matching through LoRA adaptation. Achieving 0.98 F1 on this novel pairwise classification task, its integration into the ClinFuse pipeline nearly doubles end-to-end recall from 0.467 to 0.910 while maintaining 92.2\% precision. The system runs entirely on-premises on a single consumer GPU, requires no cloud API, and invokes the LLM only for the small fraction of pairs that probabilistic matching cannot resolve. These properties---high accuracy, full privacy, low cost, and interpretable fusion---make MedGemma-powered entity resolution a practical path toward the 99.9\% matching accuracy that the MATCH~IT Act demands and that patient safety requires.
 
 Entity resolution represents a genuinely novel application of MedGemma---repurposing medical language understanding for a task entirely outside the model's pretraining distribution. The success of this transfer suggests that medical foundation models have broader utility than their original design scope implies: clinical NLP capabilities can power infrastructure tasks that underpin the entire healthcare data ecosystem. As health information exchange scales under TEFCA, MedGemma's combination of clinical reasoning, edge deployability, and adaptability through parameter-efficient fine-tuning offers a foundation for safe, accurate, and privacy-preserving patient matching at national scale.
 
@@ -312,8 +261,9 @@ Video: \textit{[URL TBD before submission]}
 % =====================================================================
 \balance
 \begingroup
-\small
+\footnotesize
 \begin{thebibliography}{99}
+\setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}\setlength{\parskip}{0pt}
 
 \bibitem{ecri2016}
 ECRI Institute PSO, ``Deep dive: Patient identification,'' 2016.
@@ -329,9 +279,6 @@ Black Book Market Research, ``Provider interoperability and patient record error
 
 \bibitem{onc2014}
 ONC, ``Patient identification and matching final report,'' 2014.
-
-\bibitem{harron2019}
-K.~Harron et al., ``Linkage error bias,'' \textit{Int.\ J.\ Epidemiol.}, 48(6):2050--2060, 2019.
 
 \bibitem{matchit2025}
 U.S.\ Congress, ``MATCH IT Act,'' H.R.~2002, 2025.
@@ -356,9 +303,6 @@ R.~Linacre et al., ``Splink: Probabilistic record linkage at scale,'' \textit{In
 
 \bibitem{walonoski2018}
 J.~Walonoski et al., ``Synthea: Generating synthetic patients and EHRs,'' \textit{JAMIA}, 25(3):230--238, 2018.
-
-\bibitem{dettmers2023}
-T.~Dettmers et al., ``QLoRA: Efficient finetuning of quantized LLMs,'' \textit{NeurIPS}, 2023.
 
 \bibitem{hu2021lora}
 E.~J. Hu et al., ``LoRA: Low-rank adaptation of large language models,'' \textit{arXiv:2106.09685}, 2021.

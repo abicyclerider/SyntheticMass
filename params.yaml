@@ -1,5 +1,5 @@
 generate:
-  population: 5000
+  population: 2500
   seed: 67890
 
 augment:
@@ -37,4 +37,4 @@ train:
   max_length: 2048
   lora_r: 16
   max_samples: 0
-  max_steps: 5000
+  max_steps: 3000

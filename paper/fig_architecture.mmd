@@ -1,14 +1,28 @@
 graph LR
-    input["Multi-Facility<br/>Records"] --> splink["Splink v4<br/>Probabilistic"]
-    splink --> auto["Auto-Match<br/><i>P > 0.95</i>"]
-    splink --> gray["Gray Zone<br/><i>uncertain P</i>"]
-    splink --> reject["Auto-Reject<br/><i>P < 0.05</i>"]
-    gray --> llm["MedGemma<br/>4B"]
-    llm --> fusion["Score<br/>Fusion"]
+    input["Multi-Facility<br/>Records"] --> block
+
+    subgraph tier1 ["Tier 1 — Blocking"]
+        block["Candidate<br/>Generation"]
+    end
+
+    block --> splink
+
+    subgraph tier2 ["Tier 2 — Triage"]
+        splink["Splink v4<br/>Scoring"] --> auto["Auto-Match<br/><i>P ≥ 0.99</i>"]
+        splink --> gray["Gray Zone<br/><i>uncertain P</i>"]
+        splink --> reject["Auto-Reject<br/><i>P < 0.01</i>"]
+    end
+
+    subgraph tier3 ["Tier 3 — Clinical LLM"]
+        llm["MedGemma<br/>4B"] --> fusion["Score<br/>Fusion"]
+    end
+
+    gray --> llm
     fusion --> golden["**Golden<br/>Records**"]
     auto --> golden
 
     style input fill:#F5F5F5,stroke:#424242
+    style block fill:#E3F2FD,stroke:#1565C0
     style splink fill:#E3F2FD,stroke:#1565C0
     style auto fill:#E8F5E9,stroke:#2E7D32,color:#2E7D32
     style gray fill:#FFF3E0,stroke:#E65100,color:#E65100
@@ -16,3 +30,6 @@ graph LR
     style llm fill:#FFF3E0,stroke:#E65100
     style fusion fill:#E3F2FD,stroke:#1565C0
     style golden fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px
+    style tier1 fill:none,stroke:#1565C0,stroke-dasharray:5 5
+    style tier2 fill:none,stroke:#1565C0,stroke-dasharray:5 5
+    style tier3 fill:none,stroke:#E65100,stroke-dasharray:5 5

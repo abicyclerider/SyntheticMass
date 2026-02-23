@@ -204,6 +204,8 @@ stages:
     outs:
     - output/inferred/predictions.parquet:
         cache: false
+    - output/inferred/inference_metrics.json:
+        cache: false
 
   golden_records:
     cmd: >-

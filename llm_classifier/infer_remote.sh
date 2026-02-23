@@ -152,6 +152,24 @@ print(f'  Mean confidence: {df[\"confidence\"].mean():.4f}')
             exit 1
         fi
 
+        # Download inference metrics from HF Hub
+        echo ""
+        echo "=== Download inference metrics ==="
+        OUTPUT_DIR="$(dirname "$OUTPUT_FILE")"
+        HF_TOKEN="$HF_TOKEN" OUTPUT_DIR="$OUTPUT_DIR" HF_REPO="$HF_OUTPUT_REPO" python3 -c "
+import os, json
+from huggingface_hub import hf_hub_download
+path = hf_hub_download(
+    repo_id=os.environ['HF_REPO'],
+    filename='inference_metrics.json',
+    repo_type='dataset',
+    local_dir=os.environ['OUTPUT_DIR'],
+)
+with open(path) as f:
+    m = json.load(f)
+print(f'  Throughput: {m[\"throughput\"]:.1f} examples/sec ({m[\"examples\"]} examples in {m[\"elapsed_seconds\"]:.0f}s)')
+" || echo "  Warning: inference metrics not available (non-fatal)."
+
         # Clean up state
         rm -f "$TIMESTAMP_FILE"
 

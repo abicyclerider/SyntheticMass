@@ -28,6 +28,8 @@ Usage:
 """
 
 import argparse
+import json
+import os
 import sys
 import time
 
@@ -130,6 +132,20 @@ def _run_batched_inference(model, tokenizer, texts, batch_size, max_length):
             print(f"  Batch {batch_num}/{n_batches} — {rate:.1f} examples/sec")
     elapsed = time.time() - t0
     return np.array(all_preds), np.array(all_confs), elapsed
+
+
+def _save_inference_metrics(path, n_examples, elapsed, batch_size):
+    """Write inference throughput metrics to a JSON file."""
+    metrics = {
+        "examples": n_examples,
+        "elapsed_seconds": round(elapsed, 2),
+        "throughput": round(n_examples / elapsed, 2),
+        "batch_size": batch_size,
+    }
+    with open(path, "w") as f:
+        json.dump(metrics, f, indent=2)
+        f.write("\n")
+    print(f"Inference metrics saved to {path}")
 
 
 def evaluate_test_split(model, tokenizer, batch_size, max_length, output_csv):
@@ -247,6 +263,13 @@ def classify_file(model, tokenizer, input_path, output_path, batch_size, max_len
         f"  Predicted match: {(all_preds == 1).sum()}, non-match: {(all_preds == 0).sum()}"
     )
 
+    _save_inference_metrics(
+        os.path.join(os.path.dirname(output_path) or ".", "inference_metrics.json"),
+        len(texts),
+        elapsed,
+        batch_size,
+    )
+
 
 def classify_hf_dataset(model, tokenizer, hf_input, hf_output, batch_size, max_length):
     """Load a dataset from HF Hub, run batched inference, push results back."""
@@ -291,6 +314,22 @@ def classify_hf_dataset(model, tokenizer, hf_input, hf_output, batch_size, max_l
         print(f"\nPushing predictions to HF Hub: {hf_output}")
         Dataset.from_pandas(result).push_to_hub(hf_output)
         print(f"  Done — {len(result)} rows pushed to {hf_output}")
+
+        # Upload throughput metrics alongside predictions
+        import tempfile
+
+        from huggingface_hub import HfApi
+
+        tmp_path = os.path.join(tempfile.gettempdir(), "inference_metrics.json")
+        _save_inference_metrics(tmp_path, len(texts), elapsed, batch_size)
+        HfApi().upload_file(
+            path_or_fileobj=tmp_path,
+            path_in_repo="inference_metrics.json",
+            repo_id=hf_output,
+            repo_type="dataset",
+        )
+        os.unlink(tmp_path)
+        print(f"  Inference metrics uploaded to {hf_output}")
     else:
         # Fall back to local CSV
         output_csv = "predictions.csv"

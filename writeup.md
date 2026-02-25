@@ -6,7 +6,7 @@ ClinFuse: Patient Entity Resolution Powered by MedGemma Clinical Reasoning
 
 **Alexander Rider** — Solo submission
 
-**Resources:** [Code](https://github.com/abicyclerider/clinfuse) | [Model](https://huggingface.co/abicyclerider/medgemma-4b-entity-resolution-text-only) | [Dataset](https://huggingface.co/datasets/abicyclerider/entity-resolution-pairs) | Video: *[URL TBD]*
+**Resources:** [Code](https://github.com/abicyclerider/clinfuse) | [Model](https://huggingface.co/abicyclerider/medgemma-4b-entity-resolution-text-only) | [Dataset](https://huggingface.co/datasets/abicyclerider/entity-resolution-pairs) | [Video](https://youtu.be/4YrgfdfIUWo)
 
 ### Problem statement
 
